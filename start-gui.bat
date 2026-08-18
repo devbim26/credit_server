@@ -2,22 +2,22 @@
 setlocal EnableDelayedExpansion
 
 REM ============================================================
-REM start-gui.bat â€” Ð·Ð°Ð¿ÑƒÑÐº ÑÐµÑ€Ð²ÐµÑ€Ð° ÑÐ¿Ð¸ÑÐ°Ð½Ð¸Ñ ÐºÑ€ÐµÐ´Ð¸Ñ‚Ð¾Ð² Ð˜ Ð¾Ñ‚ÐºÑ€Ñ‹Ñ‚Ð¸Ðµ
-REM GUI (Ð°Ð´Ð¼Ð¸Ð½ÐºÐ¸) Ð² Ð±Ñ€Ð°ÑƒÐ·ÐµÑ€Ðµ Ð¿Ð¾ ÑƒÐ¼Ð¾Ð»Ñ‡Ð°Ð½Ð¸ÑŽ.
+REM start-gui.bat - § ¯ãáª á¥à¢¥à  á¯¨á ­¨ï ªà¥¤¨â®¢ ˆ ®âªàëâ¨¥
+REM GUI ( ¤¬¨­ª¨) ¢ ¡à ã§¥à¥ ¯® ã¬®«ç ­¨î.
 REM
-REM Ð”ÐµÐ»Ð°ÐµÑ‚ Ñ‚Ð¾ Ð¶Ðµ, Ñ‡Ñ‚Ð¾ start.bat (Ð¿Ð¾Ð´Ð½Ð¸Ð¼Ð°ÐµÑ‚ uvicorn Ð´Ð»Ñ server.py),
-REM Ð¿Ð»ÑŽÑ Ñ‡ÐµÑ€ÐµÐ· ~3 ÑÐµÐº Ð¿Ð¾ÑÐ»Ðµ ÑÑ‚Ð°Ñ€Ñ‚Ð° Ð¾Ñ‚ÐºÑ€Ñ‹Ð²Ð°ÐµÑ‚ http://localhost:PORT/admin
-REM Ð² Ð±Ñ€Ð°ÑƒÐ·ÐµÑ€Ðµ. ÐšÐ¾Ð½Ñ„Ð¸Ð³ Ð¿Ð¾Ñ€Ñ‚Ð°/Ñ…Ð¾ÑÑ‚Ð° Ñ‡Ð¸Ñ‚Ð°ÐµÑ‚ÑÑ Ð¸Ð· .env.
+REM „¥« ¥â â® ¦¥, çâ® start.bat (¯®¤­¨¬ ¥â uvicorn ¤«ï server.py),
+REM ¯«îá ç¥à¥§ ~3 á¥ª ¯®á«¥ áâ àâ  ®âªàë¢ ¥â http://localhost:PORT/admin
+REM ¢ ¡à ã§¥à¥. Š®­ä¨£ ¯®àâ /å®áâ  ç¨â ¥âáï ¨§ .env.
 REM ============================================================
 
 set "PORT=4010"
 
-REM --- defaults (Ð¿ÐµÑ€ÐµÐºÑ€Ñ‹Ð²Ð°ÑŽÑ‚ÑÑ .env, ÐµÑÐ»Ð¸ ÐµÑÑ‚ÑŒ) ---
+REM --- defaults (¯¥à¥ªàë¢ îâáï .env, ¥á«¨ ¥áâì) ---
 set "BASE_URL=http://localhost:4010"
 set "DB_PATH=credits.db"
 set "HOST=0.0.0.0"
 
-REM --- Ð·Ð°Ð³Ñ€ÑƒÐ·ÐºÐ° .env (KEY=VALUE; ÐºÐ¾Ð¼Ð¼ÐµÐ½Ñ‚Ð°Ñ€Ð¸Ð¸ # Ð¸ ÐºÐ°Ð²Ñ‹Ñ‡ÐºÐ¸ Ñ€ÐµÐ¶ÑƒÑ‚ÑÑ) ---
+REM --- § £àã§ª  .env (KEY=VALUE; ª®¬¬¥­â à¨¨ # ¨ ª ¢ëçª¨ à¥¦ãâáï) ---
 set "ENV_FILE=%~dp0.env"
 if exist "%ENV_FILE%" (
     for /f "usebackq eol=# tokens=1,* delims==" %%A in ("%ENV_FILE%") do (
@@ -33,21 +33,25 @@ if exist "%ENV_FILE%" (
 cd /d "%~dp0"
 set "SRV_DIR=%CD%"
 
-REM --- Ð½Ðµ Ð·Ð°Ð¿ÑƒÑÐºÐ°Ñ‚ÑŒ Ð²Ñ‚Ð¾Ñ€Ð¾Ð¹ ÑÐºÐ·ÐµÐ¼Ð¿Ð»ÑÑ€, ÐµÑÐ»Ð¸ Ð¿Ð¾Ñ€Ñ‚ ÑƒÐ¶Ðµ ÑÐ»ÑƒÑˆÐ°ÐµÑ‚ ---
+REM --- ­¥ § ¯ãáª âì ¢â®à®© íª§¥¬¯«ïà, ¥á«¨ ¯®àâ ã¦¥ á«ãè ¥â ---
 netstat -ano | findstr LISTENING | findstr ":%PORT% " >nul 2>&1
 if not errorlevel 1 (
-    echo [INFO] Ð¿Ð¾Ñ€Ñ‚ %PORT% ÑƒÐ¶Ðµ Ð·Ð°Ð½ÑÑ‚ â€” ÑÐµÑ€Ð²ÐµÑ€, Ð²Ð¸Ð´Ð¸Ð¼Ð¾, ÑƒÐ¶Ðµ Ð·Ð°Ð¿ÑƒÑ‰ÐµÐ½.
-    echo        ÐžÑ‚ÐºÑ€Ñ‹Ð²Ð°ÐµÐ¼ GUI Ð² Ð±Ñ€Ð°ÑƒÐ·ÐµÑ€Ðµ...
+    echo [INFO] ¯®àâ %PORT% ã¦¥ § ­ïâ - á¥à¢¥à, ¢¨¤¨¬®, ã¦¥ § ¯ãé¥­.
+    echo        Žâªàë¢ ¥¬ GUI ¢ ¡à ã§¥à¥...
     start "" "http://localhost:%PORT%/admin"
     timeout /t 2 >nul
     exit /b 0
 )
 
-REM --- Ñ„Ð¾Ñ€Ð¼Ð¸Ñ€ÑƒÐµÐ¼ ÐºÐ¾Ð¼Ð°Ð½Ð´Ñƒ Ð·Ð°Ð¿ÑƒÑÐºÐ° Ð² Ð·Ð°Ð²Ð¸ÑÐ¸Ð¼Ð¾ÑÑ‚Ð¸ Ð¾Ñ‚ Ñ‚Ð¾Ð³Ð¾, Ñ‡Ñ‚Ð¾ Ð´Ð¾ÑÑ‚ÑƒÐ¿Ð½Ð¾ ---
+REM --- ä®à¬¨àã¥¬ ª®¬ ­¤ã § ¯ãáª  ¢ § ¢¨á¨¬®áâ¨ ®â â®£®, çâ® ¤®áâã¯­® ---
 set "RUN_CMD="
 
 if exist "%SRV_DIR%\venv\Scripts\python.exe" (
     set "RUN_CMD="%SRV_DIR%\venv\Scripts\python.exe" -m uvicorn server:app --host %HOST% --port %PORT%"
+)
+
+if not defined RUN_CMD if exist "%LOCALAPPDATA%\Programs\Python\Python312\python.exe" (
+    set "RUN_CMD="%LOCALAPPDATA%\Programs\Python\Python312\python.exe" -m uvicorn server:app --host %HOST% --port %PORT%"
 )
 
 if not defined RUN_CMD (
@@ -64,7 +68,7 @@ if not defined RUN_CMD (
 
 if not defined RUN_CMD (
     echo [ERROR] python not found.
-    echo         Ð£ÑÑ‚Ð°Ð½Ð¾Ð²Ð¸Ñ‚Ðµ Python Ð¸Ð»Ð¸ ÑÐ¾Ð·Ð´Ð°Ð¹Ñ‚Ðµ venv\Scripts\python.exe Ñ€ÑÐ´Ð¾Ð¼ Ñ start.bat.
+    echo         “áâ ­®¢¨â¥ Python ¨«¨ á®§¤ ©â¥ venv\Scripts\python.exe àï¤®¬ á start.bat.
     pause
     exit /b 1
 )
@@ -73,29 +77,29 @@ echo Starting credits server on %HOST%:%PORT% ...
 echo Dir: %SRV_DIR%
 echo Run : !RUN_CMD!
 
-REM --- Ð¾Ñ‚Ð´ÐµÐ»ÑŒÐ½Ñ‹Ð¹ Ð²Ñ€ÐµÐ¼ÐµÐ½Ð½Ñ‹Ð¹ Ð±Ð°Ñ‚Ð½Ð¸Ðº, ÐºÐ¾Ñ‚Ð¾Ñ€Ñ‹Ð¹:
-REM   1) Ð·Ð°Ð¿ÑƒÑÐºÐ°ÐµÑ‚ uvicorn (ÑÐµÑ€Ð²ÐµÑ€),
-REM   2) Ð¶Ð´Ñ‘Ñ‚, Ð¿Ð¾ÐºÐ° Ð¾Ð½ Ð¿Ð¾Ð´Ð½Ð¸Ð¼ÐµÑ‚ÑÑ (~3 ÑÐµÐº),
-REM   3) Ð¾Ñ‚ÐºÑ€Ñ‹Ð²Ð°ÐµÑ‚ GUI Ð² Ð±Ñ€Ð°ÑƒÐ·ÐµÑ€Ðµ.
-REM Ð’ÑÑ‘ Ð² Ð¾Ð´Ð½Ð¾Ð¼ Ð¾ÐºÐ½Ðµ "credits-server", Ñ‡Ñ‚Ð¾Ð±Ñ‹ Ð¿Ð¾ Ð½ÐµÐ¼Ñƒ Ð±Ñ‹Ð»Ð¾ Ð²Ð¸Ð´Ð½Ð¾ Ð»Ð¾Ð³ ÑÐµÑ€Ð²ÐµÑ€Ð°.
+REM --- ®â¤¥«ì­ë© ¢à¥¬¥­­ë© ¡ â­¨ª, ª®â®àë©:
+REM   1) § ¯ãáª ¥â uvicorn (á¥à¢¥à),
+REM   2) ¦¤ñâ, ¯®ª  ®­ ¯®¤­¨¬¥âáï (~3 á¥ª),
+REM   3) ®âªàë¢ ¥â GUI ¢ ¡à ã§¥à¥.
+REM ‚áñ ¢ ®¤­®¬ ®ª­¥ "credits-server", çâ®¡ë ¯® ­¥¬ã ¡ë«® ¢¨¤­® «®£ á¥à¢¥à .
 set "_RUNTMP=%TEMP%\credits_start_gui_%RANDOM%.bat"
 > "%_RUNTMP%" echo @echo off
 >>"%_RUNTMP%" echo cd /d "%SRV_DIR%"
 >>"%_RUNTMP%" echo start "" "http://localhost:%PORT%/admin"
 >>"%_RUNTMP%" echo !RUN_CMD!
 >>"%_RUNTMP%" echo echo.
->>"%_RUNTMP%" echo echo Ð¡ÐµÑ€Ð²ÐµÑ€ Ð¾ÑÑ‚Ð°Ð½Ð¾Ð²Ð»ÐµÐ½. ÐÐ°Ð¶Ð¼Ð¸Ñ‚Ðµ Ð»ÑŽÐ±ÑƒÑŽ ÐºÐ»Ð°Ð²Ð¸ÑˆÑƒ Ð´Ð»Ñ Ð·Ð°ÐºÑ€Ñ‹Ñ‚Ð¸Ñ Ð¾ÐºÐ½Ð°.
+>>"%_RUNTMP%" echo echo ‘¥à¢¥à ®áâ ­®¢«¥­.  ¦¬¨â¥ «î¡ãî ª« ¢¨èã ¤«ï § ªàëâ¨ï ®ª­ .
 >>"%_RUNTMP%" echo pause ^>nul
 
-REM Ð—Ð°Ð¿ÑƒÑÐº Ð² Ð½Ð¾Ð²Ð¾Ð¼ Ð¾ÐºÐ½Ðµ. start "" Ð¾Ñ‚ÐºÑ€Ñ‹Ð²Ð°ÐµÑ‚ Ð±Ñ€Ð°ÑƒÐ·ÐµÑ€ Ð”Ðž uvicorn (Ñ‚.Ðº. Ð±Ñ€Ð°ÑƒÐ·ÐµÑ€
-REM Ð³Ñ€ÑƒÐ·Ð¸Ñ‚ÑÑ Ð´Ð¾Ð»ÑŒÑˆÐµ) â€” Ðº Ð¼Ð¾Ð¼ÐµÐ½Ñ‚Ñƒ Ð·Ð°Ð¿Ñ€Ð¾ÑÐ° ÑÐµÑ€Ð²ÐµÑ€ ÑƒÐ¶Ðµ Ð¿Ð¾Ð´Ð½Ð¸Ð¼ÐµÑ‚ÑÑ. Ð•ÑÐ»Ð¸ Ð±Ñ€Ð°ÑƒÐ·ÐµÑ€
-REM Ð¾Ñ‚ÐºÑ€Ð¾ÐµÑ‚ÑÑ Ñ‡ÑƒÑ‚ÑŒ Ñ€Ð°Ð½ÑŒÑˆÐµ, ÑÑ‚Ñ€Ð°Ð½Ð¸Ñ†Ð° ÑÐ°Ð¼Ð° Ð¿Ð¾Ð²Ñ‚Ð¾Ñ€Ð¸Ñ‚ Ð·Ð°Ð¿Ñ€Ð¾ÑÑ‹ Ðº API.
+REM ‡ ¯ãáª ¢ ­®¢®¬ ®ª­¥. start "" ®âªàë¢ ¥â ¡à ã§¥à „Ž uvicorn (â.ª. ¡à ã§¥à
+REM £àã§¨âáï ¤®«ìè¥) - ª ¬®¬¥­âã § ¯à®á  á¥à¢¥à ã¦¥ ¯®¤­¨¬¥âáï. …á«¨ ¡à ã§¥à
+REM ®âªà®¥âáï çãâì à ­ìè¥, áâà ­¨æ  á ¬  ¯®¢â®à¨â § ¯à®áë ª API.
 
 start "credits-server" "%_RUNTMP%"
 
 echo.
-echo ÐžÐºÐ½Ð¾ ÑÐµÑ€Ð²ÐµÑ€Ð°: "credits-server". GUI Ð¾Ñ‚ÐºÑ€Ñ‹Ð²Ð°ÐµÑ‚ÑÑ Ð² Ð±Ñ€Ð°ÑƒÐ·ÐµÑ€Ðµ.
+echo Žª­® á¥à¢¥à : "credits-server". GUI ®âªàë¢ ¥âáï ¢ ¡à ã§¥à¥.
 echo GUI: http://localhost:%PORT%/admin
-echo ÐžÑÑ‚Ð°Ð½Ð¾Ð²Ð¸Ñ‚ÑŒ: stop.bat
+echo Žáâ ­®¢¨âì: stop.bat
 timeout /t 3 >nul
 exit /b 0

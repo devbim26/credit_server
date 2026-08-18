@@ -2,11 +2,11 @@
 setlocal EnableDelayedExpansion
 
 REM ============================================================
-REM stop.bat ‚Äî –æ—Å—Ç–∞–Ω–æ–≤–∏—Ç—å —Å–µ—Ä–≤–µ—Ä —Å–ø–∏—Å–∞–Ω–∏—è –∫—Ä–µ–¥–∏—Ç–æ–≤ (–ø–æ—Ä—Ç :4010).
-REM –°–ø—É—Ç–Ω–∏–∫ start.bat. –ò–¥–µ–º–ø–æ—Ç–µ–Ω—Ç–Ω–æ: –Ω–∏—á–µ–≥–æ –Ω–µ –ø–∞–¥–∞–µ—Ç, –µ—Å–ª–∏ —É–∂–µ –Ω–µ –∑–∞–ø—É—â–µ–Ω.
+REM stop.bat - Æ·‚†≠Æ¢®‚Ï ·•‡¢•‡ ·Ø®·†≠®Ô ™‡•§®‚Æ¢ (ØÆ‡‚ :4010).
+REM ëØ„‚≠®™ start.bat. à§•¨ØÆ‚•≠‚≠Æ: ≠®Á•£Æ ≠• Ø†§†•‚, •·´® „¶• ≠• ß†Ø„È•≠.
 REM ============================================================
 
-REM --- –ø–æ—Ä—Ç –±–µ—Ä—ë–º –∏–∑ .env, –∏–Ω–∞—á–µ 4010 ---
+REM --- ØÆ‡‚ °•‡Ò¨ ®ß .env, ®≠†Á• 4010 ---
 set "PORT=4010"
 set "ENV_FILE=%~dp0.env"
 if exist "%ENV_FILE%" (
@@ -17,7 +17,7 @@ if exist "%ENV_FILE%" (
 
 echo Stopping credits server on :%PORT% ...
 
-REM --- PID, —Å–ª—É—à–∞—é—â–∏–π –ø–æ—Ä—Ç ---
+REM --- PID, ·´„Ë†ÓÈ®© ØÆ‡‚ ---
 set "BE_PID="
 for /f "tokens=5" %%P in ('netstat -ano ^| findstr LISTENING ^| findstr ":%PORT% "') do (
     if not "%%P"=="0" if not defined BE_PID set "BE_PID=%%P"
@@ -31,7 +31,7 @@ if not defined BE_PID (
 echo killing PID %BE_PID% ...
 taskkill /F /PID %BE_PID% >nul 2>&1
 if errorlevel 1 (
-    echo [WARN] –Ω–µ —É–¥–∞–ª–æ—Å—å –∑–∞–≤–µ—Ä—à–∏—Ç—å PID %BE_PID%
+    echo [WARN] ≠• „§†´Æ·Ï ß†¢•‡Ë®‚Ï PID %BE_PID%
     exit /b 1
 )
 

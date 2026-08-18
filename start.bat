@@ -2,21 +2,21 @@
 setlocal EnableDelayedExpansion
 
 REM ============================================================
-REM start.bat â€” Ð·Ð°Ð¿ÑƒÑÐº ÑÐµÑ€Ð²ÐµÑ€Ð° ÑÐ¿Ð¸ÑÐ°Ð½Ð¸Ñ ÐºÑ€ÐµÐ´Ð¸Ñ‚Ð¾Ð² (FastAPI :4010).
+REM start.bat - § ¯ãáª á¥à¢¥à  á¯¨á ­¨ï ªà¥¤¨â®¢ (FastAPI :4010).
 REM
-REM Ð—Ð°Ð¿ÑƒÑÐºÐ°ÐµÑ‚ uvicorn Ð´Ð»Ñ server.py Ð² Ð½Ð¾Ð²Ð¾Ð¼ Ð¾ÐºÐ½Ðµ. ÐšÐ¾Ð½Ñ„Ð¸Ð³ Ñ‡Ð¸Ñ‚Ð°ÐµÑ‚ÑÑ
-REM Ð¸Ð· .env (CREDITS_API_KEY, ADMIN_KEY, FORWARD_URL, PORT Ð¸ Ñ‚.Ð´.).
-REM Ð˜Ð´ÐµÐ¼Ð¿Ð¾Ñ‚ÐµÐ½Ñ‚Ð½Ð¾: ÐµÑÐ»Ð¸ Ð¿Ð¾Ñ€Ñ‚ ÑƒÐ¶Ðµ Ð·Ð°Ð½ÑÑ‚ â€” Ð½Ðµ Ð·Ð°Ð¿ÑƒÑÐºÐ°ÐµÑ‚ Ð²Ñ‚Ð¾Ñ€Ð¾Ð¹ ÑÐºÐ·ÐµÐ¼Ð¿Ð»ÑÑ€.
+REM ‡ ¯ãáª ¥â uvicorn ¤«ï server.py ¢ ­®¢®¬ ®ª­¥. Š®­ä¨£ ç¨â ¥âáï
+REM ¨§ .env (CREDITS_API_KEY, ADMIN_KEY, FORWARD_URL, PORT ¨ â.¤.).
+REM ˆ¤¥¬¯®â¥­â­®: ¥á«¨ ¯®àâ ã¦¥ § ­ïâ - ­¥ § ¯ãáª ¥â ¢â®à®© íª§¥¬¯«ïà.
 REM ============================================================
 
 set "PORT=4010"
 
-REM --- defaults (Ð¿ÐµÑ€ÐµÐºÑ€Ñ‹Ð²Ð°ÑŽÑ‚ÑÑ .env, ÐµÑÐ»Ð¸ ÐµÑÑ‚ÑŒ) ---
+REM --- defaults (¯¥à¥ªàë¢ îâáï .env, ¥á«¨ ¥áâì) ---
 set "BASE_URL=http://localhost:4010"
 set "DB_PATH=credits.db"
 set "HOST=0.0.0.0"
 
-REM --- Ð·Ð°Ð³Ñ€ÑƒÐ·ÐºÐ° .env (KEY=VALUE; ÐºÐ¾Ð¼Ð¼ÐµÐ½Ñ‚Ð°Ñ€Ð¸Ð¸ # Ð¸ ÐºÐ°Ð²Ñ‹Ñ‡ÐºÐ¸ Ñ€ÐµÐ¶ÑƒÑ‚ÑÑ) ---
+REM --- § £àã§ª  .env (KEY=VALUE; ª®¬¬¥­â à¨¨ # ¨ ª ¢ëçª¨ à¥¦ãâáï) ---
 set "ENV_FILE=%~dp0.env"
 if exist "%ENV_FILE%" (
     for /f "usebackq eol=# tokens=1,* delims==" %%A in ("%ENV_FILE%") do (
@@ -32,19 +32,23 @@ if exist "%ENV_FILE%" (
 cd /d "%~dp0"
 set "SRV_DIR=%CD%"
 
-REM --- Ð½Ðµ Ð·Ð°Ð¿ÑƒÑÐºÐ°Ñ‚ÑŒ Ð²Ñ‚Ð¾Ñ€Ð¾Ð¹ ÑÐºÐ·ÐµÐ¼Ð¿Ð»ÑÑ€, ÐµÑÐ»Ð¸ Ð¿Ð¾Ñ€Ñ‚ ÑƒÐ¶Ðµ ÑÐ»ÑƒÑˆÐ°ÐµÑ‚ ---
+REM --- ­¥ § ¯ãáª âì ¢â®à®© íª§¥¬¯«ïà, ¥á«¨ ¯®àâ ã¦¥ á«ãè ¥â ---
 netstat -ano | findstr LISTENING | findstr ":%PORT% " >nul 2>&1
 if not errorlevel 1 (
-    echo [INFO] Ð¿Ð¾Ñ€Ñ‚ %PORT% ÑƒÐ¶Ðµ Ð·Ð°Ð½ÑÑ‚ â€” ÑÐµÑ€Ð²ÐµÑ€, Ð²Ð¸Ð´Ð¸Ð¼Ð¾, ÑƒÐ¶Ðµ Ð·Ð°Ð¿ÑƒÑ‰ÐµÐ½.
+    echo [INFO] ¯®àâ %PORT% ã¦¥ § ­ïâ - á¥à¢¥à, ¢¨¤¨¬®, ã¦¥ § ¯ãé¥­.
     pause
     exit /b 0
 )
 
-REM --- Ñ„Ð¾Ñ€Ð¼Ð¸Ñ€ÑƒÐµÐ¼ ÐºÐ¾Ð¼Ð°Ð½Ð´Ñƒ Ð·Ð°Ð¿ÑƒÑÐºÐ° Ð² Ð·Ð°Ð²Ð¸ÑÐ¸Ð¼Ð¾ÑÑ‚Ð¸ Ð¾Ñ‚ Ñ‚Ð¾Ð³Ð¾, Ñ‡Ñ‚Ð¾ Ð´Ð¾ÑÑ‚ÑƒÐ¿Ð½Ð¾ ---
+REM --- ä®à¬¨àã¥¬ ª®¬ ­¤ã § ¯ãáª  ¢ § ¢¨á¨¬®áâ¨ ®â â®£®, çâ® ¤®áâã¯­® ---
 set "RUN_CMD="
 
 if exist "%SRV_DIR%\venv\Scripts\python.exe" (
     set "RUN_CMD="%SRV_DIR%\venv\Scripts\python.exe" -m uvicorn server:app --host %HOST% --port %PORT%"
+)
+
+if not defined RUN_CMD if exist "%LOCALAPPDATA%\Programs\Python\Python312\python.exe" (
+    set "RUN_CMD="%LOCALAPPDATA%\Programs\Python\Python312\python.exe" -m uvicorn server:app --host %HOST% --port %PORT%"
 )
 
 if not defined RUN_CMD (
@@ -61,7 +65,7 @@ if not defined RUN_CMD (
 
 if not defined RUN_CMD (
     echo [ERROR] python not found.
-    echo         Ð£ÑÑ‚Ð°Ð½Ð¾Ð²Ð¸Ñ‚Ðµ Python Ð¸Ð»Ð¸ ÑÐ¾Ð·Ð´Ð°Ð¹Ñ‚Ðµ venv\Scripts\python.exe Ñ€ÑÐ´Ð¾Ð¼ Ñ start.bat.
+    echo         “áâ ­®¢¨â¥ Python ¨«¨ á®§¤ ©â¥ venv\Scripts\python.exe àï¤®¬ á start.bat.
     pause
     exit /b 1
 )
@@ -70,22 +74,22 @@ echo Starting credits server on %HOST%:%PORT% ...
 echo Dir: %SRV_DIR%
 echo Run : !RUN_CMD!
 
-REM Ð—Ð°Ð¿ÑƒÑÐº Ð² Ð½Ð¾Ð²Ð¾Ð¼ Ð¾ÐºÐ½Ðµ.
-REM Ð’ÐÐ–ÐÐž: Ð¿ÐµÑ€Ð²Ñ‹Ð¹ Ð°Ñ€Ð³ÑƒÐ¼ÐµÐ½Ñ‚ start Ð² ÐºÐ°Ð²Ñ‹Ñ‡ÐºÐ°Ñ… = Ð·Ð°Ð³Ð¾Ð»Ð¾Ð²Ð¾Ðº Ð¾ÐºÐ½Ð° ("credits-server").
-REM Ð¡Ð°Ð¼Ñƒ ÐºÐ¾Ð¼Ð°Ð½Ð´Ñƒ Ð·Ð°Ð¿ÑƒÑÐºÐ°ÐµÐ¼ Ñ‡ÐµÑ€ÐµÐ· Ð²Ñ€ÐµÐ¼ÐµÐ½Ð½Ñ‹Ð¹ _run_tmp.bat, Ñ‡Ñ‚Ð¾Ð±Ñ‹ ÐºÐ¾Ñ€Ñ€ÐµÐºÑ‚Ð½Ð¾
-REM Ð¾Ð±Ñ€Ð°Ð±Ð¾Ñ‚Ð°Ñ‚ÑŒ ÑÐ»ÑƒÑ‡Ð°Ð¹ Ñ Ð¿Ñ€Ð¾Ð±ÐµÐ»Ð¾Ð¼ (py -3) Ð¸ ÐºÐ°Ð²Ñ‹Ñ‡ÐºÐ°Ð¼Ð¸ Ð² Ð¿ÑƒÑ‚Ð¸ Ðº python.exe.
+REM ‡ ¯ãáª ¢ ­®¢®¬ ®ª­¥.
+REM ‚€†Ž: ¯¥à¢ë©  à£ã¬¥­â start ¢ ª ¢ëçª å = § £®«®¢®ª ®ª­  ("credits-server").
+REM ‘ ¬ã ª®¬ ­¤ã § ¯ãáª ¥¬ ç¥à¥§ ¢à¥¬¥­­ë© _run_tmp.bat, çâ®¡ë ª®àà¥ªâ­®
+REM ®¡à ¡®â âì á«ãç © á ¯à®¡¥«®¬ (py -3) ¨ ª ¢ëçª ¬¨ ¢ ¯ãâ¨ ª python.exe.
 set "_RUNTMP=%TEMP%\credits_start_%RANDOM%.bat"
 > "%_RUNTMP%" echo @echo off
 >>"%_RUNTMP%" echo cd /d "%SRV_DIR%"
 >>"%_RUNTMP%" echo !RUN_CMD!
 >>"%_RUNTMP%" echo echo.
->>"%_RUNTMP%" echo echo Ð¡ÐµÑ€Ð²ÐµÑ€ Ð¾ÑÑ‚Ð°Ð½Ð¾Ð²Ð»ÐµÐ½. ÐÐ°Ð¶Ð¼Ð¸Ñ‚Ðµ Ð»ÑŽÐ±ÑƒÑŽ ÐºÐ»Ð°Ð²Ð¸ÑˆÑƒ Ð´Ð»Ñ Ð·Ð°ÐºÑ€Ñ‹Ñ‚Ð¸Ñ Ð¾ÐºÐ½Ð°.
+>>"%_RUNTMP%" echo echo ‘¥à¢¥à ®áâ ­®¢«¥­.  ¦¬¨â¥ «î¡ãî ª« ¢¨èã ¤«ï § ªàëâ¨ï ®ª­ .
 >>"%_RUNTMP%" echo pause >nul
 
 start "credits-server" "%_RUNTMP%"
 
 echo.
-echo ÐžÐºÐ½Ð¾ ÑÐµÑ€Ð²ÐµÑ€Ð°: "credits-server". GUI: http://localhost:%PORT%/admin
-echo ÐžÑÑ‚Ð°Ð½Ð¾Ð²Ð¸Ñ‚ÑŒ: stop.bat
+echo Žª­® á¥à¢¥à : "credits-server". GUI: http://localhost:%PORT%/admin
+echo Žáâ ­®¢¨âì: stop.bat
 timeout /t 3 >nul
 exit /b 0

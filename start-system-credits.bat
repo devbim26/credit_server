@@ -44,6 +44,7 @@ if not errorlevel 1 (
 REM --- find python: venv -> PATH python -> py -3 ---
 set "RUN_CMD="
 if exist "%SRV_DIR%\venv\Scripts\python.exe" set "RUN_CMD="%SRV_DIR%\venv\Scripts\python.exe" -m uvicorn server:app --host %HOST% --port %PORT%"
+if not defined RUN_CMD if exist "%LOCALAPPDATA%\Programs\Python\Python312\python.exe" set "RUN_CMD="%LOCALAPPDATA%\Programs\Python\Python312\python.exe" -m uvicorn server:app --host %HOST% --port %PORT%"
 if not defined RUN_CMD (
     python --version >nul 2>&1 && set "RUN_CMD=python -m uvicorn server:app --host %HOST% --port %PORT%"
 )

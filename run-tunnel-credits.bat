@@ -3,31 +3,31 @@ setlocal
 
 REM ============================================================
 REM run-tunnel-credits.bat
-REM –ü—É–±–ª–∏–∫–∞—Ü–∏—è —Å–µ—Ä–≤–µ—Ä–∞ —Å–ø–∏—Å–∞–Ω–∏—è –∫—Ä–µ–¥–∏—Ç–æ–≤ —á–µ—Ä–µ–∑ –û–¢–î–ï–õ–¨–ù–´–ô Cloudflare-—Ç—É–Ω–Ω–µ–ª—å.
-REM –ú–∞—Ä—à—Ä—É—Ç: credits.dev-bim.com -> http://localhost:4010
+REM è„°´®™†Ê®Ô ·•‡¢•‡† ·Ø®·†≠®Ô ™‡•§®‚Æ¢ Á•‡•ß éíÑÖãúçõâ Cloudflare-‚„≠≠•´Ï.
+REM å†‡Ë‡„‚: credits.dev-bim.com -> http://localhost:4010
 REM
-REM –û–¢–î–ï–õ–¨–ù–´–ô —Ç—É–Ω–Ω–µ–ª—å 'credits' (UUID db3069c5-b8e7-491d-a433-b78f96c3ae57)
-REM –ù–ï –∑–∞–≤–∏—Å–∏—Ç –æ—Ç —Ç—É–Ω–Ω–µ–ª—è docx-gen ‚Äî –∏–∑–æ–ª—è—Ü–∏—è –∑–∞–ø—É—Å–∫–∞/–æ—Å—Ç–∞–Ω–æ–≤–∫–∏.
+REM éíÑÖãúçõâ ‚„≠≠•´Ï 'credits' (UUID db3069c5-b8e7-491d-a433-b78f96c3ae57)
+REM çÖ ß†¢®·®‚ Æ‚ ‚„≠≠•´Ô docx-gen - ®ßÆ´ÔÊ®Ô ß†Ø„·™†/Æ·‚†≠Æ¢™®.
 REM
-REM –ü–†–ï–î–í–ê–†–ò–¢–ï–õ–¨–ù–û (–≤—ã–ø–æ–ª–Ω–µ–Ω–æ –æ–¥–∏–Ω —Ä–∞–∑):
-REM   1. cloudflared –∑–∞–ª–æ–≥–∏–Ω–µ–Ω (cert.pem –≤ ~/.cloudflared)
-REM   2. —Å–æ–∑–¥–∞–Ω —Ç—É–Ω–Ω–µ–ª—å credits (UUID db3069c5-...)
-REM   3. –∫–æ–Ω—Ñ–∏–≥ ~/.cloudflared/config-credits.yml
+REM èêÖÑÇÄêàíÖãúçé (¢ÎØÆ´≠•≠Æ Æ§®≠ ‡†ß):
+REM   1. cloudflared ß†´Æ£®≠•≠ (cert.pem ¢ ~/.cloudflared)
+REM   2. ·Æß§†≠ ‚„≠≠•´Ï credits (UUID db3069c5-...)
+REM   3. ™Æ≠‰®£ ~/.cloudflared/config-credits.yml
 REM   4. DNS credits.dev-bim.com -> db3069c5-...cfargotunnel.com
 REM ============================================================
 
-REM --- –ø–æ–∏—Å–∫ cloudflared ---
-REM –í–ê–ñ–ù–û: –Ω–µ –∏—Å–ø–æ–ª—å–∑—É–µ–º "where" - –æ–Ω –æ—Ç–¥–∞—ë—Ç System32\cloudflared.exe,
-REM –∫–æ—Ç–æ—Ä—ã–π –∑–∞–±–ª–æ–∫–∏—Ä–æ–≤–∞–Ω –∫ –∑–∞–ø—É—Å–∫—É (0 –±–∞–π—Ç, "–û—Ç–∫–∞–∑–∞–Ω–æ –≤ –¥–æ—Å—Ç—É–ø–µ").
-REM –ë–µ—Ä—ë–º —Ä–∞–±–æ—á–∏–π —ç–∫–∑–µ–º–ø–ª—è—Ä –∏–∑ Program Files (x86).
+REM --- ØÆ®·™ cloudflared ---
+REM ÇÄÜçé: ≠• ®·ØÆ´Ïß„•¨ "where" - Æ≠ Æ‚§†Ò‚ System32\cloudflared.exe,
+REM ™Æ‚Æ‡Î© ß†°´Æ™®‡Æ¢†≠ ™ ß†Ø„·™„ (0 °†©‚, "é‚™†ß†≠Æ ¢ §Æ·‚„Ø•").
+REM Å•‡Ò¨ ‡†°ÆÁ®© Ì™ß•¨Ø´Ô‡ ®ß Program Files (x86).
 set "CFEXE="
 if exist "%ProgramFiles(x86)%\cloudflared\cloudflared.exe" set "CFEXE=%ProgramFiles(x86)%\cloudflared\cloudflared.exe"
 if not defined CFEXE if exist "%ProgramFiles%\cloudflared\cloudflared.exe" set "CFEXE=%ProgramFiles%\cloudflared\cloudflared.exe"
 if not defined CFEXE if exist "%USERPROFILE%\.cloudflared\cloudflared.exe" set "CFEXE=%USERPROFILE%\.cloudflared\cloudflared.exe"
 
 if not defined CFEXE (
-    echo [ERROR] cloudflared –Ω–µ –Ω–∞–π–¥–µ–Ω.
-    echo –£—Å—Ç–∞–Ω–æ–≤–∏—Ç–µ cloudflared –≤ Program Files –∏–ª–∏ –≤ –ø–∞–ø–∫—É .cloudflared.
+    echo [ERROR] cloudflared ≠• ≠†©§•≠.
+    echo ì·‚†≠Æ¢®‚• cloudflared ¢ Program Files ®´® ¢ Ø†Ø™„ .cloudflared.
     pause
     exit /b 1
 )
@@ -36,18 +36,18 @@ set "CF_DIR=%USERPROFILE%\.cloudflared"
 set "CFG=%CF_DIR%\config-credits.yml"
 
 if not exist "%CFG%" (
-    echo [ERROR] –Ω–µ—Ç –∫–æ–Ω—Ñ–∏–≥–∞: %CFG%
+    echo [ERROR] ≠•‚ ™Æ≠‰®£†: %CFG%
     pause
     exit /b 1
 )
 
-echo –ó–∞–ø—É—Å–∫ Cloudflare-—Ç—É–Ω–Ω–µ–ª—è credits ...
-echo –ö–æ–Ω—Ñ–∏–≥: %CFG%
-echo credits.dev-bim.com –Ω–∞–ø—Ä–∞–≤–ª—è–µ—Ç—Å—è –Ω–∞ http://localhost:4010
+echo á†Ø„·™ Cloudflare-‚„≠≠•´Ô credits ...
+echo äÆ≠‰®£: %CFG%
+echo credits.dev-bim.com ≠†Ø‡†¢´Ô•‚·Ô ≠† http://localhost:4010
 echo.
 
 "%CFEXE%" tunnel --config "%CFG%" run credits
 
 echo.
-echo –¢—É–Ω–Ω–µ–ª—å –æ—Å—Ç–∞–Ω–æ–≤–ª–µ–Ω.
+echo í„≠≠•´Ï Æ·‚†≠Æ¢´•≠.
 pause
