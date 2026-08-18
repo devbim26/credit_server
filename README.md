@@ -16,6 +16,7 @@ FastAPI-сервис, который:
 ├── converter.py         # токены → кредиты + расчёт стоимости в $ ($/млн токенов)
 ├── forwarder.py         # пересылка на «другой сервер» + retry failed
 ├── templates/admin.html # веб-GUI (сводка $/кредиты/вызовы, курсы, статистика, логи, пересылка)
+├── analytics/           # дашборд аналитики вызовов (/dashboard: графики, пользователи, логи, туннель)
 ├── credit_reporter.py   # сниппет-библиотека (для локального теста)
 ├── openwebui_pipe_credits.py  # ← ФУНКЦИЯ Open WebUI (один автономный файл, вставлять целиком)
 ├── requirements.txt
@@ -65,6 +66,7 @@ pip install -r requirements.txt
 ```bat
 start.bat                :: запуск в новом окне ("credits-server")
 start-gui.bat            :: то же + открывает админку в браузере
+start-dashboard.bat      :: то же + открывает дашборд аналитики (/dashboard)
 start-system-credits.bat :: ПОЛНЫЙ запуск: бэкенд + туннель (два окна)
 stop.bat                 :: останов (по PID слушателя порта)
 ```
@@ -86,7 +88,25 @@ uvicorn server:app --host 0.0.0.0 --port 4010
 ```
 
 GUI: **http://localhost:4010/admin** (корень `/` тоже редиректит на `/admin`)
+Дашборд аналитики: **http://localhost:4010/dashboard** (`start-dashboard.bat`)
 Health: http://localhost:4010/health
+
+## Дашборд аналитики (/dashboard)
+
+Самодостаточный пакет `analytics/` (своя SQLite `data/analytics.db`, JSON-API `/stats/*`).
+Каждый принятый `POST /api/usage` пишется в аналитику: модель, breakdown токенов,
+$ от провайдера (`cost_usd`), email/GUID, имя функции (агента), latency (из
+`request_date`/`response_date`), ошибки (`is_success=false`). Пересылку на
+devbim.com дашборд **не** дублирует — её по-прежнему делает `forwarder.py`.
+
+Страницы: входящие по email · обработка запросов · внешние отчёты · настройки ·
+тест (отправка тестового отчёта в `/api/usage`) · живые логи + управление туннелем.
+
+- **Локально** (`http://localhost:4010/dashboard`) — авто-логин, ключ не нужен.
+- **Через туннель** (`https://credits.dev-bim.com/dashboard`) — один раз ввести
+  `ANALYTICS_API_KEY` из `.env` (auth включён, т.к. сервер публичный).
+- Туннель `credits` виден дашборду (статус/кнопки на странице «Логи»); туннель,
+  запущенный `run-tunnel-credits.bat`, помечается как внешний (не гасится рестартом).
 
 ## Публикация через Cloudflare-туннель (для удалённого Open WebUI)
 
@@ -282,6 +302,8 @@ URL/ключ сниппет читает из переменных окруже�
 |---|---|---|
 | POST | `/api/usage` | принять данные от сниппета (Bearer `CREDITS_API_KEY`) |
 | GET  | `/admin` | веб-GUI |
+| GET  | `/dashboard` | дашборд аналитики (графики/пользователи/логи/туннель; `ANALYTICS_API_KEY` при доступе через туннель) |
+| GET  | `/stats/*` | JSON-API дашборда (summary, timeline, models, requests, emails, logs, tunnel) |
 | GET/POST/DELETE | `/api/rates[/{model}]` | управление курсами (Bearer `ADMIN_KEY`) |
 | GET | `/api/records` | лог использования (пагинация, фильтр) |
 | GET | `/api/stats?group_by=email\|function\|model` | агрегаты (сумма $, кредитов, токенов) |

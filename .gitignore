@@ -25,3 +25,6 @@ __pycache__/
 
 # Артефакты браузерного тестирования (скриншоты/логи Playwright MCP).
 .playwright-mcp/
+
+# БД дашборда аналитики (analytics/)
+data/

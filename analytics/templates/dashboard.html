@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Аналитика · Сервер списания кредитов</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<style>
+  :root{--bg:#0e1116;--card:#161b22;--card2:#1c232c;--border:#262d36;--txt:#e6edf3;--muted:#8b949e;--accent:#58a6ff;--green:#3fb950;--red:#f85149;--yellow:#d29922;--purple:#bc8cff;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;}
+  header{position:sticky;top:0;z-index:10;background:#010409;border-bottom:1px solid var(--border);}
+  .header-top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:12px 24px;}
+  header h1{font-size:17px;margin:0;font-weight:600}
+  header h1 .sub{color:var(--muted);font-weight:400;margin-left:8px;font-size:12px}
+  .spacer{flex:1}
+  .seg{display:inline-flex;background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+  .seg button{background:none;border:0;color:var(--muted);padding:7px 12px;cursor:pointer;font-size:13px;font-weight:500}
+  .seg button.active{background:var(--card2);color:var(--txt)}
+  .btn{background:var(--card);border:1px solid var(--border);color:var(--txt);padding:7px 12px;border-radius:8px;cursor:pointer;font-size:13px;}
+  .btn:hover{background:var(--card2)}.btn.yellow{color:var(--yellow)}
+  #last-upd{color:var(--muted);font-size:12px}
+  nav.tabs{display:flex;gap:4px;padding:0 24px;border-top:1px solid var(--border);}
+  nav.tabs button{background:none;border:0;color:var(--muted);padding:10px 16px;cursor:pointer;font-size:14px;font-weight:500;border-bottom:2px solid transparent;}
+  nav.tabs button.active{color:var(--txt);border-bottom-color:var(--accent);}
+  nav.tabs button:hover{color:var(--txt)}
+  .token-row{display:none;gap:8px;align-items:center}
+  .token-row input{background:var(--card);border:1px solid var(--border);color:var(--txt);border-radius:8px;padding:7px 10px;font-size:13px;width:200px}
+  main{max-width:1500px;margin:0 auto;padding:22px}
+  .page{display:none}.page.active{display:block}
+  .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:20px}
+  .kpi{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:15px 17px}
+  .kpi .label{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+  .kpi .value{font-size:24px;font-weight:700;margin-top:5px;line-height:1.1}
+  .kpi .sub{color:var(--muted);font-size:12px;margin-top:3px}
+  .kpi.cost .value{color:var(--green)}.kpi.error .value{color:var(--red)}
+  .charts{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+  @media(max-width:900px){.charts{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px}
+  .card h3{margin:0 0 12px;font-size:13px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+  .chart-wrap{position:relative;height:230px}
+  .panel{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:20px}
+  .panel h3{margin:0 0 14px;font-size:13px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+  .filters,.test-params{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center}
+  .filters select,.filters input,.test-params input,.test-params select,.block-label textarea{background:var(--card2);border:1px solid var(--border);color:var(--txt);border-radius:8px;padding:7px 10px;font-size:13px}
+  .filters label,.test-params label,.block-label{color:var(--muted);font-size:12px}
+  .block-label{display:flex;flex-direction:column;gap:4px}
+  .block-label textarea{min-height:50px;resize:vertical;font-family:"SFMono-Regular",Consolas,monospace;font-size:12px;margin-top:6px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);white-space:nowrap}
+  th{color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+  tbody tr:hover{background:var(--card2)}
+  .clickable{cursor:pointer;color:var(--accent)}.clickable:hover{text-decoration:underline}
+  .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
+  .badge.ok{background:rgba(63,185,80,.15);color:var(--green)}.badge.err{background:rgba(248,81,73,.15);color:var(--red)}
+  .right{text-align:right}.muted{color:var(--muted)}.empty{color:var(--muted);padding:24px;text-align:center}
+  .settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:900px){.settings-grid{grid-template-columns:1fr}}
+  .set-row{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px}
+  .set-row:last-child{border-bottom:0}.set-row .k{color:var(--muted)}.set-row .v{text-align:right;word-break:break-all}.set-row .v.secret{color:var(--yellow);font-family:monospace}
+  .tag{display:inline-block;background:var(--card2);border:1px solid var(--border);color:var(--muted);padding:2px 8px;border-radius:8px;font-size:11px;margin:2px}
+  .detail-label{color:var(--muted);font-size:12px;margin:12px 0 2px;text-transform:uppercase;letter-spacing:.04em}
+  .test-params{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+  @media(max-width:700px){.test-params{grid-template-columns:1fr}}
+  .chat-panel{display:flex;flex-direction:column;height:calc(100vh - 210px);min-height:420px}
+  .chat-log{flex:1;overflow-y:auto;padding:4px 4px 14px;display:flex;flex-direction:column;gap:12px}
+  .msg{max-width:80%;padding:10px 14px;border-radius:14px;font-size:13.5px;line-height:1.5;word-break:break-word}
+  .msg.user{align-self:flex-end;background:#1f6feb;color:#fff;border-bottom-right-radius:4px}
+  .msg.assistant{align-self:flex-start;background:var(--card2);border:1px solid var(--border);border-bottom-left-radius:4px}
+  .msg .meta{color:var(--muted);font-size:11px;margin-top:8px;border-top:1px solid var(--border);padding-top:6px}.msg .meta.err{color:var(--red)}
+  .msg pre{margin:6px 0 0;white-space:pre-wrap;background:#010409;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12px}
+  .msg-thumbs{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.msg-thumbs img{width:70px;height:70px;object-fit:cover;border-radius:6px;border:1px solid var(--border)}
+  .chat-input{border-top:1px solid var(--border);padding-top:12px}.thumbs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+  .thumb{position:relative}.thumb img{width:60px;height:60px;object-fit:cover;border-radius:6px;border:1px solid var(--border)}
+  .thumb .rm{position:absolute;top:-6px;right:-6px;background:var(--red);color:#fff;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:12px;line-height:1}
+  #chat-text{width:100%;background:var(--card2);border:1px solid var(--border);color:var(--txt);border-radius:8px;padding:10px 12px;font-size:13.5px;resize:none;min-height:54px;max-height:160px}
+  .chat-actions{display:flex;gap:8px;align-items:center;margin-top:8px}
+  .logs-box{background:#010409;border:1px solid var(--border);border-radius:10px;padding:12px 14px;height:calc(100vh - 330px);min-height:360px;overflow-y:auto;font-family:"SFMono-Regular",Consolas,monospace;font-size:12.5px;line-height:1.55}
+  .log-line{display:flex;gap:8px;padding:1px 0;white-space:pre-wrap;word-break:break-word}.log-line .lt{color:#6e7681;flex-shrink:0}
+  .log-line .ll{flex-shrink:0;font-weight:600;width:54px}.log-line .lm{color:var(--txt)}
+  .ll.INFO{color:#58a6ff}.ll.WARNING{color:var(--yellow)}.ll.ERROR{color:var(--red)}.ll.CRITICAL{color:var(--red)}.ll.DEBUG{color:var(--muted)}
+  .dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:6px;vertical-align:middle}.dot.on{background:var(--green);box-shadow:0 0 8px var(--green)}.dot.off{background:var(--muted)}.dot.warn{background:var(--yellow);box-shadow:0 0 8px var(--yellow)}.dot.err{background:var(--red);box-shadow:0 0 8px var(--red)}
+  .statusbar{display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .statusbar .st{display:inline-flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:5px 10px;font-size:12px}
+  .statusbar .st .lbl{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+  .statusbar .st .v{color:var(--txt);font-weight:600}.statusbar .st .v.ok{color:var(--green)}.statusbar .st .v.err{color:var(--red)}.statusbar .st .v.warn{color:var(--yellow)}.statusbar .st .v.neutral{color:var(--muted);font-weight:500}
+  .tunnel-host{font-family:monospace;color:var(--accent)}
+  .codebox{background:#010409;border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-top:4px;max-height:200px;overflow:auto;white-space:pre-wrap;word-break:break-word;font-family:"SFMono-Regular",Consolas,monospace;font-size:12px;color:var(--txt);line-height:1.5}
+</style>
+</head>
+<body>
+<header>
+  <div class="header-top">
+    <h1><span id="app-title">Аналитика · Сервер списания кредитов</span></h1>
+    <div class="statusbar" id="statusbar">
+      <span class="st" id="st-backend" title="Бэкенд-сервер"><span class="dot off"></span><span class="lbl">Бэкенд</span><span class="v neutral">…</span></span>
+      <span class="st" id="st-api" title="LLM-провайдер (ключ/баланс)"><span class="dot off"></span><span class="lbl">API</span><span class="v neutral">…</span></span>
+      <span class="st" id="st-tunnel" title="Туннель Cloudflare"><span class="dot off"></span><span class="lbl">Туннель</span><span class="v neutral">…</span></span>
+      <span class="st" id="st-ext" title="Внешний сервис (webhook/billing)"><span class="dot off"></span><span class="lbl">Внешний</span><span class="v neutral">…</span></span>
+    </div>
+    <div class="spacer"></div>
+    <div class="token-row" id="token-row"><input id="token-input" type="password" placeholder="Bearer токен"/><button class="btn" id="token-save">Сохранить</button></div>
+    <div class="seg" id="range-seg"><button data-r="1h">1ч</button><button data-r="24h" class="active">24ч</button><button data-r="7d">7д</button><button data-r="30d">30д</button><button data-r="all">Всё</button></div>
+    <button class="btn" id="refresh-btn">↻ Обновить</button><span id="last-upd"></span>
+  </div>
+  <nav class="tabs" id="nav">
+    <button data-page="incoming" class="active">① Входящие данные</button>
+    <button data-page="processing">② Обработка запросов</button>
+    <button data-page="outbound">③ Отправлено во внешний сервис</button>
+    <button data-page="settings">④ Настройки</button>
+    <button data-page="tests">⑤ Тесты</button>
+    <button data-page="logs">⑥ Логи</button>
+  </nav>
+</header>
+<main>
+<section class="page active" id="page-incoming">
+  <div class="kpi-grid">
+    <div class="kpi cost"><div class="label">Стоимость</div><div class="value" id="i-cost">—</div><div class="sub" id="i-cost-sub">за период</div></div>
+    <div class="kpi"><div class="label">Запросов</div><div class="value" id="i-req">—</div><div class="sub" id="i-req-sub"></div></div>
+    <div class="kpi"><div class="label">Токенов</div><div class="value" id="i-tok">—</div><div class="sub" id="i-tok-sub"></div></div>
+    <div class="kpi"><div class="label">Email-ов</div><div class="value" id="i-emails">—</div><div class="sub">пользователей</div></div>
+    <div class="kpi"><div class="label">Остаток кредитов</div><div class="value" id="i-bal">—</div><div class="sub" id="i-bal-sub"></div></div>
+  </div>
+  <div class="charts">
+    <div class="card"><h3>Стоимость по времени</h3><div class="chart-wrap"><canvas id="inCostChart"></canvas></div></div>
+    <div class="card"><h3>Запросы по времени</h3><div class="chart-wrap"><canvas id="inReqChart"></canvas></div></div>
+    <div class="card"><h3>Токены по моделям</h3><div class="chart-wrap"><canvas id="inTokChart"></canvas></div></div>
+  </div>
+  <div class="panel"><h3 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">Пользователи по email <button class="btn" id="export-xlsx" style="margin-left:auto" title="Excel: сводка по пользователям + запросы + балансы">⬇ Экспорт в Excel</button></h3><div style="overflow-x:auto"><table id="email-table"><thead><tr><th>Email</th><th class="right">Запросов</th><th class="right">Успешно</th><th class="right">Ошибок</th><th class="right">Списано, $</th><th class="right">Баланс, $</th><th class="right">Токены</th><th>Активность</th></tr></thead><tbody id="email-tbody"><tr><td colspan="8" class="empty">Загрузка…</td></tr></tbody></table></div></div>
+  <div class="panel" id="email-detail" style="display:none"><h3 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">Запросы пользователя: <span id="email-detail-chip"></span><button class="btn" id="export-user-xlsx" style="margin-left:auto" title="Excel по этому пользователю (для акта выполненных работ)">⬇ Акт работ (Excel)</button></h3><div style="overflow-x:auto"><table><thead><tr><th>Время</th><th>Модель</th><th>Task</th><th class="right">Токены</th><th class="right">Стоимость</th><th>Статус</th></tr></thead><tbody id="email-detail-tbody"></tbody></table></div></div>
+</section>
+<section class="page" id="page-processing">
+  <div class="kpi-grid">
+    <div class="kpi"><div class="label">Всего запросов</div><div class="value" id="p-req">—</div><div class="sub" id="p-req-sub"></div></div>
+    <div class="kpi"><div class="label">Средняя задержка</div><div class="value" id="p-lat">—</div><div class="sub" id="p-lat-sub"></div></div>
+    <div class="kpi error"><div class="label">Error rate</div><div class="value" id="p-err">—</div><div class="sub" id="p-err-sub"></div></div>
+    <div class="kpi"><div class="label">Валидация схемы</div><div class="value" id="p-schema">—</div><div class="sub">из проверенных</div></div>
+  </div>
+  <div class="panel"><h3>Журнал обработки</h3>
+    <div class="filters"><label>Статус</label><select id="f-status"><option value="">все</option><option value="success">успех</option><option value="error">ошибка</option></select><label>Модель</label><input id="f-model" type="text" placeholder="часть имени" style="width:150px"/><label>Email</label><input id="f-email" type="text" placeholder="email" style="width:160px"/><button class="btn" id="f-apply">Применить</button><button class="btn" id="f-clear">Сбросить</button></div>
+    <div style="overflow-x:auto"><table><thead><tr><th>Время</th><th>Email</th><th>Task</th><th>Модель</th><th>Schema</th><th class="right">Задержка</th><th class="right">Карт.</th><th>Статус</th><th>Ошибка</th></tr></thead><tbody id="proc-tbody"><tr><td colspan="9" class="empty">Загрузка…</td></tr></tbody></table></div></div>
+</section>
+<section class="page" id="page-outbound">
+  <div class="kpi-grid">
+    <div class="kpi"><div class="label">Отправлено отчётов</div><div class="value" id="o-reports">—</div><div class="sub" id="o-reports-sub"></div></div>
+    <div class="kpi cost"><div class="label">Списано вебхуком</div><div class="value" id="o-charged">—</div><div class="sub">Σ charged</div></div>
+    <div class="kpi"><div class="label">Успешность отправки</div><div class="value" id="o-sendrate">—</div><div class="sub" id="o-sendrate-sub"></div></div>
+    <div class="kpi"><div class="label">Баланс пользователя</div><div class="value" id="o-ubal">—</div><div class="sub" id="o-ubal-sub"></div></div>
+  </div>
+  <div class="charts"><div class="card"><h3>Списания по времени</h3><div class="chart-wrap"><canvas id="oChargedChart"></canvas></div></div><div class="card"><h3>Отчёты по времени</h3><div class="chart-wrap"><canvas id="oRepChart"></canvas></div></div></div>
+  <div class="panel"><h3>Отправлено во внешний сервис (вебхук)</h3><div style="overflow-x:auto"><table><thead><tr><th>Время</th><th>User ID</th><th>Email</th><th>Модель</th><th class="right">Токены</th><th class="right">messageCost</th><th class="right">Списано</th><th class="right">Баланс</th><th>Запрос</th><th>Отправка</th><th>HTTP</th></tr></thead><tbody id="ext-tbody"><tr><td colspan="11" class="empty">Загрузка…</td></tr></tbody></table></div><div id="ext-detail" style="display:none;margin-top:16px;border-top:1px solid var(--border);padding-top:14px"></div></div>
+</section>
+<section class="page" id="page-settings">
+  <div class="panel"><h3>Аккаунт (OpenRouter)</h3><div id="acc-info"><div class="empty">Загрузка…</div></div><div style="margin-top:12px"><button class="btn yellow" id="s-live">⟳ Обновить баланс и лимиты</button></div></div>
+  <div class="settings-grid" id="settings-grid"><div class="empty">Загрузка…</div></div>
+</section>
+<section class="page" id="page-tests">
+  <div class="panel"><h3>Параметры запроса</h3>
+    <div class="test-params">
+      <label>CREDITS_API_KEY (Bearer для приёма отчётов)<input id="t-key" type="password" placeholder="CREDITS_API_KEY из .env" autocomplete="off"/></label>
+      <label>Эндпоинт<input id="t-endp" type="text" value="/api/usage" placeholder="/api/usage"/></label>
+      <label>Функция (агент)<input id="t-func" type="text" placeholder="Тест (дашборд)"/></label>
+      <label>Модель (ключ курса)<input id="t-model" type="text" placeholder="google/gemini-3.5-flash"/></label>
+      <label>Email (опц.)<input id="t-email" type="text" placeholder="user@example.com"/></label>
+      <label>User ID GUID (опц.)<input id="t-uid" type="text" placeholder="UUID для пересылки"/></label>
+      <label>Токены всего<input id="t-tokens" type="number" min="0" value="1000"/></label>
+      <label>Токены input/output (опц.)<span style="display:flex;gap:6px"><input id="t-pin" type="number" min="0" placeholder="in"/><input id="t-pout" type="number" min="0" placeholder="out"/></span></label>
+    </div>
+  </div>
+  <div class="panel chat-panel"><div class="chat-log" id="chat-log"><div class="empty">Задайте параметры отчёта выше и нажмите «Отправить» — тестовый отчёт уйдёт в POST /api/usage. ⚠️ Запись попадёт в лог использования, кредиты спишутся по курсу модели, а отчёт встанет в очередь пересылки на devbim.com.</div></div>
+    <div class="chat-input"><div class="thumbs" id="chat-thumbs"></div>
+      <div class="chat-actions"><button class="btn" id="chat-clear">Очистить</button><div class="spacer" style="flex:1"></div><button class="btn" id="chat-send">➤ Отправить</button></div></div></div>
+</section>
+<section class="page" id="page-logs">
+  <div class="panel"><h3>Туннель (cloudflared)</h3><div class="tunnel-status" id="tunnel-status"><span class="muted">Загрузка…</span></div><div style="display:flex;gap:8px;margin-top:8px"><button class="btn" id="tunnel-start" style="background:rgba(63,185,80,.15);color:var(--green);border-color:rgba(63,185,80,.3)">▶ Запустить</button><button class="btn" id="tunnel-stop">■ Остановить</button><button class="btn" id="tunnel-refresh">↻ Обновить статус</button></div></div>
+  <div class="panel"><div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap"><h3 style="margin:0;flex:1">Живые логи сервера</h3><label style="font-size:13px;color:var(--muted)"><input type="checkbox" id="logs-autoscroll" checked> автоскролл</label><label style="font-size:13px;color:var(--muted)"><input type="checkbox" id="logs-pause"> пауза</label><button class="btn" id="logs-clear">Очистить</button></div><div class="logs-box" id="logs-box"><div class="muted">Ожидание записей…</div></div></div>
+</section>
+</main>
+<script>
+const TOKEN_KEY="or_dashboard_token",TEST_KEY="or_test_params";
+// Автотокен: сервер подставляет аналитический ключ только при прямом локальном
+// доступе (loopback без X-Forwarded-For, т.е. не через туннель); публичная
+// копия страницы получает пустую строку — там ключ вводится руками.
+const AUTO_TOKEN="__AUTO_TOKEN__";
+let token=AUTO_TOKEN||localStorage.getItem(TOKEN_KEY)||"",range="24h",page="incoming",charts={},chatImages=[],logsTimer=null,logsSeq=0,_extReports=[];
+const fmtUSD=v=>(v==null?"—":"$"+Number(v).toFixed(4));const fmtUSD2=v=>(v==null?"—":"$"+Number(v).toFixed(2));
+const fmtNum=v=>(v==null?"—":Number(v).toLocaleString("ru-RU"));const fmtMs=v=>(v==null?"—":Math.round(v)+" мс");
+const fmtPct=v=>(v==null?"—":(v*100).toFixed(1)+"%");const fmtTime=s=>s?new Date(s).toLocaleString("ru-RU",{hour12:false}):"—";
+const escapeHtml=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+async function api(path){const h={};if(token)h["Authorization"]="Bearer "+token;const r=await fetch(path,{headers:h});if(r.status===401){showTokenRow();throw new Error("401");}return r.json();}
+async function apiPost(path){const h={"Content-Type":"application/json"};if(token)h["Authorization"]="Bearer "+token;const r=await fetch(path,{method:"POST",headers:h});if(r.status===401){showTokenRow();throw new Error("401");}return r.json().catch(()=>({}));}
+function showTokenRow(){document.getElementById("token-row").style.display="flex";}
+function destroy(n){if(charts[n]){charts[n].destroy();delete charts[n];}}
+const PALETTE=["#58a6ff","#3fb950","#bc8cff","#d29922","#f85149","#39d0d8","#ff7b72","#7ee787"];
+function chartOpts(extra={}){return Object.assign({responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:"#010409",borderColor:"#262d36",borderWidth:1}},scales:{x:{grid:{color:"#1c232c"},ticks:{color:"#8b949e",maxRotation:0,autoSkip:true}},y:{beginAtZero:true,grid:{color:"#1c232c"},ticks:{color:"#8b949e"}}}},extra);}
+function showPage(p){page=p;document.querySelectorAll(".page").forEach(s=>s.classList.remove("active"));document.getElementById("page-"+p).classList.add("active");document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("active",b.dataset.page===p));document.getElementById("range-seg").style.visibility=(p==="settings"||p==="tests"||p==="logs")?"hidden":"visible";stopLogsPolling();loadPage();}
+document.getElementById("nav").addEventListener("click",e=>{const b=e.target.closest("button");if(b)showPage(b.dataset.page);});
+// page 1
+async function loadIncoming(){try{const[s,tl,emails,bal,models]=await Promise.all([api(`/stats/summary?range=${range}`),api(`/stats/timeline?range=${range}&bucket=${range==="1h"?"hour":"day"}`),api(`/stats/emails?range=${range}`),api(`/stats/credits`),api(`/stats/models?range=${range}`)]);document.getElementById("i-cost").textContent=fmtUSD(s.total_cost);document.getElementById("i-req").textContent=fmtNum(s.total_requests);document.getElementById("i-req-sub").textContent=(s.success_count||0)+" успешно";document.getElementById("i-tok").textContent=fmtNum(s.total_tokens);document.getElementById("i-tok-sub").textContent=fmtNum(s.total_prompt_tokens)+" вх / "+fmtNum(s.total_completion_tokens)+" вых";document.getElementById("i-emails").textContent=fmtNum(emails.length);const snap=bal.snapshot;document.getElementById("i-bal").textContent=snap&&snap.remaining!=null?fmtUSD2(snap.remaining):"—";document.getElementById("i-bal-sub").textContent=snap?("потрачено "+fmtUSD2(snap.total_usage)+" из "+fmtUSD2(snap.total_credits)):"нет данных";const labels=tl.map(t=>t.bucket);destroy("inCost");destroy("inReq");destroy("inTok");charts.inCost=new Chart(document.getElementById("inCostChart").getContext("2d"),{type:"line",data:{labels,datasets:[{data:tl.map(t=>Number(t.cost||0)),borderColor:"#3fb950",backgroundColor:"#3fb95022",fill:true,tension:.3,pointRadius:2,borderWidth:2}]},options:chartOpts()});charts.inReq=new Chart(document.getElementById("inReqChart").getContext("2d"),{type:"bar",data:{labels,datasets:[{data:tl.map(t=>t.requests),backgroundColor:"#58a6ff",borderRadius:3}]},options:chartOpts()});const ml=models.map(m=>m.model||"unknown");charts.inTok=new Chart(document.getElementById("inTokChart").getContext("2d"),{type:"bar",data:{labels:ml,datasets:[{label:"Входящие",data:models.map(m=>m.prompt_tokens||0),backgroundColor:"#58a6ff",stack:"t"},{label:"Исходящие",data:models.map(m=>m.completion_tokens||0),backgroundColor:"#3fb950",stack:"t"}]},options:chartOpts({plugins:{legend:{display:true,position:"top",labels:{color:"#8b949e",boxWidth:12,font:{size:11}}}},scales:{x:{stacked:true,grid:{display:false},ticks:{color:"#8b949e",font:{size:10}}},y:{stacked:true,beginAtZero:true,grid:{color:"#1c232c"},ticks:{color:"#8b949e"}}}})});const tb=document.getElementById("email-tbody");if(!emails.length){tb.innerHTML='<tr><td colspan="8" class="empty">Нет данных за период</td></tr>';return;}tb.innerHTML=emails.map(e=>`<tr><td><span class="clickable" data-email="${e.email||"(без email)"}">${e.email||"<span class='muted'>(без email)</span>"}</span></td><td class="right">${fmtNum(e.requests)}</td><td class="right">${fmtNum(e.success_count)}</td><td class="right">${fmtNum(e.error_count)}</td><td class="right">${fmtUSD(e.charged)}</td><td class="right">${e.balance==null?"<span class='muted'>—</span>":`<span title="на ${fmtTime(e.balance_ts||"")}">${fmtUSD2(e.balance)}</span>`}</td><td class="right">${fmtNum(e.total_tokens)}</td><td class="muted">${fmtTime(e.last_ts)}</td></tr>`).join("");}catch(err){if(err.message!=="401")console.error(err);}}
+document.getElementById("export-xlsx").addEventListener("click",async()=>{const b=document.getElementById("export-xlsx");b.disabled=true;b.textContent="⏳ Формирую…";try{const h={};if(token)h["Authorization"]="Bearer "+token;const r=await fetch(`/stats/export/xlsx?range=${range}`,{headers:h});if(!r.ok)throw new Error("HTTP "+r.status);const blob=await r.blob();const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`report_${range}.xlsx`;a.click();URL.revokeObjectURL(a.href);}catch(e){alert("Экспорт не удался: "+e.message);}finally{b.disabled=false;b.textContent="⬇ Экспорт в Excel";}});
+document.getElementById("email-table").addEventListener("click",async e=>{const el=e.target.closest("[data-email]");if(!el)return;const ef=el.dataset.email;document.getElementById("email-detail").style.display="block";document.getElementById("email-detail-chip").textContent=ef;try{const r=await api(`/stats/requests?range=${range}&limit=100&email=${encodeURIComponent(ef==="(без email)"?"":ef)}`);document.getElementById("email-detail-tbody").innerHTML=(r.items||[]).map(it=>`<tr><td class="muted">${fmtTime(it.ts)}</td><td>${it.model_actual||it.model_requested||"—"}</td><td>${it.task||"—"}</td><td class="right">${it.total_tokens==null?"—":fmtNum(it.total_tokens)}</td><td class="right">${fmtUSD(it.cost)}</td><td><span class="badge ${it.status==="success"?"ok":"err"}">${it.status==="success"?"ок":"ошибка"}</span></td></tr>`).join("")||'<tr><td colspan="6" class="empty">Нет запросов</td></tr>';}catch(err){if(err.message!=="401")console.error(err);}});
+document.getElementById("export-user-xlsx").addEventListener("click",async()=>{const ef=document.getElementById("email-detail-chip").textContent;if(!ef)return;const b=document.getElementById("export-user-xlsx");b.disabled=true;b.textContent="⏳ Формирую…";try{const h={};if(token)h["Authorization"]="Bearer "+token;const r=await fetch(`/stats/export/xlsx?range=all&email=${encodeURIComponent(ef==="(без email)"?"":ef)}`,{headers:h});if(!r.ok)throw new Error("HTTP "+r.status);const blob=await r.blob();const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`act_${ef.replace(/[^\w.@-]+/g,"_")}.xlsx`;a.click();URL.revokeObjectURL(a.href);}catch(e){alert("Экспорт не удался: "+e.message);}finally{b.disabled=false;b.textContent="⬇ Акт работ (Excel)";}});
+// page 2
+async function loadProcessing(){try{const s=await api(`/stats/summary?range=${range}`);document.getElementById("p-req").textContent=fmtNum(s.total_requests);document.getElementById("p-req-sub").textContent=(s.success_count||0)+" успешно, "+(s.error_count||0)+" с ошибкой";document.getElementById("p-lat").textContent=fmtMs(s.avg_latency_ms);document.getElementById("p-lat-sub").textContent="p95: "+fmtMs(s.p95_latency_ms);document.getElementById("p-err").textContent=fmtNum(s.error_count||0);document.getElementById("p-err-sub").textContent=fmtPct(s.error_rate);document.getElementById("p-schema").textContent="—";const qs=`range=${range}&limit=100`+(document.getElementById("f-status").value?`&status=${document.getElementById("f-status").value}`:"")+(document.getElementById("f-model").value.trim()?`&model=${encodeURIComponent(document.getElementById("f-model").value.trim())}`:"")+(document.getElementById("f-email").value.trim()?`&email=${encodeURIComponent(document.getElementById("f-email").value.trim())}`:"");const r=await api(`/stats/requests?${qs}`);const items=r.items||[];const checked=items.filter(i=>i.schema_valid!==null&&i.schema_valid!==undefined);const okSch=checked.filter(i=>i.schema_valid).length;document.getElementById("p-schema").textContent=checked.length?fmtPct(okSch/checked.length):"—";const tb=document.getElementById("proc-tbody");if(!items.length){tb.innerHTML='<tr><td colspan="9" class="empty">Нет данных за период</td></tr>';return;}tb.innerHTML=items.map(it=>`<tr><td class="muted">${fmtTime(it.ts)}</td><td>${it.email||"<span class='muted'>(без email)</span>"}</td><td>${it.task||"—"}</td><td>${it.model_actual||it.model_requested||"—"}</td><td>${it.schema_valid===null?"<span class='muted'>—</span>":(it.schema_valid?"<span class='badge ok'>ок</span>":"<span class='badge err'>нет</span>")}</td><td class="right">${it.latency_ms==null?"—":fmtMs(it.latency_ms)}</td><td class="right">${it.num_images==null?"—":it.num_images}</td><td><span class="badge ${it.status==="success"?"ok":"err"}">${it.status==="success"?"ок":"ошибка"}</span></td><td class="muted" style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${escapeHtml((it.error||"").slice(0,60))}</td></tr>`).join("");}catch(err){if(err.message!=="401")console.error(err);}}
+document.getElementById("f-apply").addEventListener("click",loadProcessing);document.getElementById("f-clear").addEventListener("click",()=>{["f-status","f-model","f-email"].forEach(id=>document.getElementById(id).value="");loadProcessing();});
+// page 3
+async function loadOutbound(){try{const[summ,rep]=await Promise.all([api(`/stats/external/summary?range=${range}`),api(`/stats/external?range=${range}&limit=100`)]);const reports=rep.items||[];_extReports=reports;document.getElementById("o-reports").textContent=fmtNum(summ.reports);document.getElementById("o-reports-sub").textContent=(summ.success_reports||0)+" успешных запросов";document.getElementById("o-charged").textContent=fmtUSD(summ.total_charged);document.getElementById("o-sendrate").textContent=fmtPct(summ.send_success_rate);document.getElementById("o-sendrate-sub").textContent=(summ.sent_ok||0)+" из "+(summ.reports||0)+" доставлено";const lb=summ.latest_balance;document.getElementById("o-ubal").textContent=lb&&lb.ext_balance!=null?fmtUSD2(lb.ext_balance):"—";document.getElementById("o-ubal-sub").textContent=lb?(lb.ext_email||"—"):"нет данных";const byDay={};reports.forEach(r=>{const d=(r.ts||"").slice(0,10);if(!d)return;byDay[d]=byDay[d]||{charged:0,count:0};byDay[d].charged+=Number(r.ext_charged||0);byDay[d].count+=1;});const days=Object.keys(byDay).sort();destroy("oCharged");destroy("oRep");charts.oCharged=new Chart(document.getElementById("oChargedChart").getContext("2d"),{type:"line",data:{labels:days,datasets:[{data:days.map(d=>Number(byDay[d].charged.toFixed(6))),borderColor:"#d29922",backgroundColor:"#d2992222",fill:true,tension:.3,pointRadius:2,borderWidth:2}]},options:chartOpts()});charts.oRep=new Chart(document.getElementById("oRepChart").getContext("2d"),{type:"bar",data:{labels:days,datasets:[{data:days.map(d=>byDay[d].count),backgroundColor:"#bc8cff",borderRadius:3}]},options:chartOpts()});const tb=document.getElementById("ext-tbody");document.getElementById("ext-detail").style.display="none";if(!reports.length){tb.innerHTML='<tr><td colspan="11" class="empty">Нет данных за период</td></tr>';return;}tb.innerHTML=reports.map(r=>{const uid=r.open_router_web_ui_user_id||"—";const uidShort=uid.length>13?uid.slice(0,13)+"…":uid;return `<tr class="clickable-row" data-id="${r.id}"><td class="muted">${fmtTime(r.ts)}</td><td class="muted" style="font-family:monospace;font-size:11px" title="${escapeHtml(uid)}">${escapeHtml(uidShort)}</td><td>${r.ext_email||"<span class='muted'>—</span>"}</td><td>${r.model_id||"—"}</td><td class="right">${fmtNum(r.total_tokens)}</td><td class="right">${fmtUSD(r.message_cost)}</td><td class="right">${r.ext_charged==null?"<span class='muted'>—</span>":fmtUSD(r.ext_charged)}</td><td class="right">${r.ext_balance==null?"<span class='muted'>—</span>":fmtUSD2(r.ext_balance)}</td><td><span class="badge ${r.is_success?"ok":"err"}">${r.is_success?"ок":"ошибка"}</span></td><td>${r.ext_ok?'<span class="badge ok">доставлено</span>':'<span class="badge err">ошибка</span>'}</td><td class="muted">${r.ext_status==null?"—":r.ext_status}</td></tr>`;}).join("");}catch(err){if(err.message!=="401")console.error(err);}}
+document.getElementById("ext-tbody").addEventListener("click",e=>{const tr=e.target.closest("tr[data-id]");if(!tr)return;const r=_extReports.find(x=>String(x.id)===tr.dataset.id);if(!r)return;const det=document.getElementById("ext-detail");det.style.display="block";det.innerHTML=`<div class="detail-label">Параметры</div><div class="set-row"><span class="k">userId</span><span class="v" style="font-family:monospace;font-size:11px">${escapeHtml(r.open_router_web_ui_user_id||"—")}</span></div><div class="set-row"><span class="k">model</span><span class="v">${escapeHtml(r.model_id||"—")} / ${escapeHtml(r.model_name||"—")}</span></div><div class="set-row"><span class="k">metadataJson</span><span class="v" style="font-family:monospace;font-size:11px">${escapeHtml(r.metadata_json||"—")}</span></div>${r.ext_error?`<div class="set-row"><span class="k">Ошибка</span><span class="v" style="color:var(--red);font-family:monospace;font-size:11px">${escapeHtml(r.ext_error)}</span></div>`:""}<div class="detail-label">requestText</div><div class="codebox">${escapeHtml(r.request_text||"")}</div><div class="detail-label">responseText</div><div class="codebox">${escapeHtml(r.response_text||"")}</div>`;det.scrollIntoView({behavior:"smooth",block:"nearest"});});
+// page 4
+async function loadSettings(){try{const cfg=await api("/stats/settings");document.getElementById("app-title").textContent=cfg.server.app_title||"Аналитика LLM";document.title=(cfg.server.app_title||"Аналитика LLM");const g=document.getElementById("settings-grid");const section=(t,rows)=>`<div class="card"><h3>${t}</h3>${rows.map(([k,v,sec])=>`<div class="set-row"><span class="k">${k}</span><span class="v ${sec?"secret":""}">${v}</span></div>`).join("")}</div>`;const list=a=>a.map(m=>`<span class="tag">${escapeHtml(m)}</span>`).join("");g.innerHTML=[section("Сервис",[["Название",escapeHtml(cfg.server.app_title)],["OpenRouter base URL",escapeHtml(cfg.server.openrouter_base_url)],["Модель по умолчанию",escapeHtml(cfg.server.default_model)],["Доступные модели",`<div>${list(cfg.server.models)}</div>`],["OpenRouter API-ключ",cfg.server.api_key,true]]),section("Аналитика",[["Трекинг",cfg.analytics.track_usage?"вкл":"выкл"],["Интервал опроса (с)",cfg.analytics.credits_poll_interval],["Путь к БД",escapeHtml(cfg.analytics.db_path)],["Защита /stats",cfg.analytics.require_auth?"вкл":"выкл"]]),section("Вебхук",[["Отправка",cfg.webhook.enabled?"вкл":"выкл"],["URL",escapeHtml(cfg.webhook.url||"—")],["Заголовок",escapeHtml(cfg.webhook.auth_header)],["Токен",cfg.webhook.token,true],["User ID",cfg.webhook.user_id,true]]),section("Туннель",[["Имя",escapeHtml(cfg.tunnel.name||"—")],["Публичный хост",escapeHtml(cfg.tunnel.public_host||"—")]])].join("");}catch(err){if(err.message!=="401")console.error(err);}loadAccount(false);}
+async function loadAccount(live){try{const[bal,keyInfo]=await Promise.all([api(`/stats/credits${live?"?live=1":""}`),api("/stats/key")]);const el=document.getElementById("acc-info");const snap=bal.snapshot;let rows=`<div class="set-row"><span class="k">Остаток кредитов</span><span class="v">${snap&&snap.remaining!=null?fmtUSD2(snap.remaining):"—"}</span></div><div class="set-row"><span class="k">Потрачено / Всего</span><span class="v">${snap?fmtUSD2(snap.total_usage)+" / "+fmtUSD2(snap.total_credits):"—"}</span></div>`;if(keyInfo&&keyInfo.key){rows+=`<div class="set-row"><span class="k">Лимит ключа</span><span class="v">${keyInfo.key.limit!=null?fmtUSD2(keyInfo.key.limit):"—"}</span></div><div class="set-row"><span class="k">Остаток по ключу</span><span class="v">${keyInfo.key.limit_remaining!=null?fmtUSD2(keyInfo.key.limit_remaining):"—"}</span></div>`;}el.innerHTML=`<div>${rows}</div>`;}catch(err){if(err.message!=="401")console.error(err);}}
+document.getElementById("s-live").addEventListener("click",()=>loadAccount(true));
+// page 5
+function loadTestParams(){try{const s=JSON.parse(localStorage.getItem(TEST_KEY)||"{}");["key","endp","func","model","email","uid","tokens","pin","pout"].forEach(k=>{if(s[k])document.getElementById("t-"+k).value=s[k];});}catch(e){}}
+function saveTestParams(){const v=id=>document.getElementById(id).value;localStorage.setItem(TEST_KEY,JSON.stringify({key:v("t-key"),endp:v("t-endp"),func:v("t-func"),model:v("t-model"),email:v("t-email"),uid:v("t-uid"),tokens:v("t-tokens"),pin:v("t-pin"),pout:v("t-pout")}));}
+async function loadTests(){/* Модель вводится вручную: список моделей у нас динамический (OpenRouter/ImageRouter), курс задаётся в GUI сервера. */loadTestParams();}
+function renderThumbs(){const el=document.getElementById("chat-thumbs");if(el)el.innerHTML=chatImages.map((a,i)=>`<div class="thumb"><img src="${a.b64}"><span class="rm" data-i="${i}">×</span></div>`).join("");}
+function pushMsg(role,html,imgs,extra={}){const log=document.getElementById("chat-log");const empty=log.querySelector(".empty");if(empty)empty.remove();const div=document.createElement("div");div.className="msg "+role;let body=html;if(imgs&&imgs.length)body+=`<div class="msg-thumbs">${imgs.map(a=>`<img src="${a.b64}">`).join("")}</div>`;if(extra.meta)body+=`<div class="meta${extra.err?" err":""}">${extra.meta}</div>`;if(extra.pre)body+=`<pre>${escapeHtml(extra.pre)}</pre>`;div.innerHTML=body;log.appendChild(div);log.scrollTop=log.scrollHeight;return div;}
+function finalizeMsg(el,label,extra={}){el.innerHTML=label+(extra.meta?`<div class="meta${extra.err?" err":""}">${extra.meta}</div>`:"")+(extra.pre?`<pre>${escapeHtml(extra.pre)}</pre>`:"");document.getElementById("chat-log").scrollTop=999999;}
+async function sendChat(){const v=id=>document.getElementById(id).value.trim();const endp=v("t-endp")||"/api/usage";saveTestParams();const tokens=parseInt(v("t-tokens"))||0;const pin=parseInt(v("t-pin")),pout=parseInt(v("t-pout"));const body={email:v("t-email")||"test@example.com",function:v("t-func")||"Тест (дашборд)",model:v("t-model"),tokens};if(!isNaN(pin))body.prompt_tokens=pin;if(!isNaN(pout))body.completion_tokens=pout;const uid=v("t-uid");if(uid)body.user_id=uid;pushMsg("user","📤 Тестовый отчёт <b>"+escapeHtml(body.function)+"</b>"+(body.model?" · "+escapeHtml(body.model):"")+" · "+tokens+" ток.");const headers={"Content-Type":"application/json"};if(v("t-key"))headers["Authorization"]="Bearer "+v("t-key");const el=pushMsg("assistant","⏳ Отправка…");try{const r=await fetch(endp,{method:"POST",headers,body:JSON.stringify(body)});const data=await r.json().catch(()=>({}));if(!r.ok){finalizeMsg(el,"❌ Ошибка "+r.status,{meta:escapeHtml(JSON.stringify(data).slice(0,400)),err:true});return;}const parts=["кредиты: <b>"+Number(data.credits??0).toFixed(2)+"</b>","курс: "+data.rate,"модель курса: "+escapeHtml(data.matched_model||"—"),"тариф: "+(data.pricing==="split"?"раздельный":"единый")];if(data.cost_usd!=null)parts.push("$"+Number(data.cost_usd).toFixed(6)+" ("+(data.cost_source==="provider"?"🟢 провайдер":"⚪ расчёт")+")");finalizeMsg(el,"✅ Отчёт принят", {meta:parts.join(" · "),pre:JSON.stringify(data,null,2)});}catch(e){finalizeMsg(el,"❌ Сетевая ошибка",{meta:escapeHtml(e.message),err:true});}}
+document.getElementById("chat-send").addEventListener("click",sendChat);document.getElementById("chat-clear").addEventListener("click",()=>{document.getElementById("chat-log").innerHTML='<div class="empty">Чат очищен.</div>';});["t-key","t-endp","t-func","t-model","t-email","t-uid","t-tokens","t-pin","t-pout"].forEach(id=>document.getElementById(id).addEventListener("change",saveTestParams));
+// page 6
+function logsBox(){return document.getElementById("logs-box");}
+function appendLogLine(r){const box=logsBox();if(box.querySelector(".muted")&&box.children.length===1)box.innerHTML="";const div=document.createElement("div");div.className="log-line";div.innerHTML=`<span class="lt">${r.ts}</span><span class="ll ${r.level}">${r.level}</span><span class="lm">${escapeHtml(r.logger+": "+r.message)}</span>`;box.appendChild(div);while(box.children.length>1000)box.removeChild(box.firstChild);if(document.getElementById("logs-autoscroll").checked)box.scrollTop=box.scrollHeight;}
+async function pollLogs(){if(document.getElementById("logs-pause").checked)return;try{const d=await api(`/stats/logs?since=${logsSeq}&limit=500`);(d.items||[]).forEach(appendLogLine);if(d.last_seq)logsSeq=d.last_seq;}catch(e){if(e.message!=="401")console.error(e);}}
+function startLogsPolling(){if(logsTimer)return;pollLogs();logsTimer=setInterval(pollLogs,1500);}
+function stopLogsPolling(){if(logsTimer){clearInterval(logsTimer);logsTimer=null;}}
+document.getElementById("logs-clear").addEventListener("click",()=>{logsBox().innerHTML='<div class="muted">Очищено локально.</div>';});
+async function loadTunnel(){try{const t=await api("/stats/tunnel");const el=document.getElementById("tunnel-status");const warns=(!t.configured?"⚠ TUNNEL_NAME не задан ":"")+(!t.installed?"⚠ cloudflared не найден ":"")+(!t.config_exists?"⚠ конфиг не найден":"");const st=warns?('<span style="color:var(--yellow)">'+warns+'</span>'):(t.running?'<span style="color:var(--green)">работает</span>':'<span class="muted">готов к запуску</span>');el.innerHTML=`${t.running?'<span class="dot on"></span>':'<span class="dot off"></span>'}<span><b>${t.running?"Запущен":"Остановлен"}</b>${t.pid?(" · pid "+t.pid):""}</span><span class="muted">хост: <span class="tunnel-host">${t.public_host?("https://"+t.public_host):"—"}</span></span>${st}`;}catch(e){if(e.message!=="401")console.error(e);}}
+async function loadLogs(){loadTunnel();startLogsPolling();}
+document.getElementById("tunnel-start").addEventListener("click",async()=>{await apiPost("/stats/tunnel/start");loadTunnel();});document.getElementById("tunnel-stop").addEventListener("click",async()=>{await apiPost("/stats/tunnel/stop");loadTunnel();});document.getElementById("tunnel-refresh").addEventListener("click",loadTunnel);
+// common
+function loadPage(){if(page==="incoming")return loadIncoming();if(page==="processing")return loadProcessing();if(page==="outbound")return loadOutbound();if(page==="settings")return loadSettings();if(page==="tests")return loadTests();if(page==="logs")return loadLogs();}
+function setSt(id,dot,vcls,text){const el=document.getElementById(id);if(!el)return;el.querySelector(".dot").className="dot "+dot;const v=el.querySelector(".v");v.className="v "+vcls;v.textContent=text;}
+async function probeBackend(){try{const r=await fetch("/health");if(r.status===404||r.status===405)return "nohealth";if(r.ok){const j=await r.json();return(j&&(j.status==="ok"||j.status==="healthy"))?"ok":"bad";}return "bad";}catch(e){return "down";}}
+async function loadStatus(){const be=await probeBackend();if(be==="down"){setSt("st-backend","err","err","Офлайн");setSt("st-api","off","neutral","н/д");setSt("st-tunnel","off","neutral","н/д");setSt("st-ext","off","neutral","н/д");return;}let on=(be==="ok");try{const [cfg,credits,tunnel,ext]=await Promise.all([api("/stats/settings").catch(()=>null),api("/stats/credits").catch(()=>null),api("/stats/tunnel").catch(()=>null),api("/stats/external/probe").catch(()=>null)]);if(be==="nohealth")on=!!cfg||!!credits||!!tunnel;setSt("st-backend",on?"on":"err",on?"ok":"err",on?"Онлайн":"Офлайн");const keySet=cfg&&cfg.server&&cfg.server.api_key&&!cfg.server.api_key.includes("пусто");const snap=credits&&credits.snapshot;const fresh=snap&&snap.ts&&(Date.now()-new Date(snap.ts).getTime())<2*60*60*1000;if(!keySet)setSt("st-api","err","err","Нет ключа");else if(fresh){const low=snap.total_credits>0&&snap.remaining!=null&&(snap.remaining/snap.total_credits)<0.05;setSt("st-api",low?"warn":"on",low?"warn":"ok",low?("Мало: "+fmtUSD2(snap.remaining)):"Подключён");}else setSt("st-api","warn","warn","Ключ задан");if(!tunnel)setSt("st-tunnel","off","neutral","н/д");else if(tunnel.running)setSt("st-tunnel","on","ok","Активен");else if(!tunnel.configured||!tunnel.installed||!tunnel.config_exists)setSt("st-tunnel","warn","warn","Не настроен");else setSt("st-tunnel","off","neutral","Выключен");if(!ext)setSt("st-ext","warn","warn","Проверка…");else if(ext.enabled===false)setSt("st-ext","off","neutral","Выключено");else if(ext.reachable)setSt("st-ext","on","ok","Доступен");else setSt("st-ext","err","err","Недоступен");}catch(e){if(e.message!=="401")console.error(e);}}
+function refreshAll(){loadPage().then(()=>{document.getElementById("last-upd").textContent="обновлено: "+new Date().toLocaleTimeString("ru-RU",{hour12:false});});}
+document.getElementById("range-seg").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;document.querySelectorAll("#range-seg button").forEach(x=>x.classList.remove("active"));b.classList.add("active");range=b.dataset.r;if(page!=="settings"&&page!=="tests"&&page!=="logs")refreshAll();});
+document.getElementById("refresh-btn").addEventListener("click",refreshAll);
+document.getElementById("token-save").addEventListener("click",()=>{token=document.getElementById("token-input").value.trim();if(token)localStorage.setItem(TOKEN_KEY,token);document.getElementById("token-row").style.display="none";refreshAll();});
+refreshAll();loadStatus();loadSettings();setInterval(loadStatus,15000);setInterval(()=>{if(page!=="settings"&&page!=="tests"&&page!=="logs")refreshAll();},60000);
+</script>
+</body>
+</html>

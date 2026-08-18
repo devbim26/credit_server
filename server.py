@@ -10,6 +10,7 @@ GUI:   http://localhost:4010/admin
 from __future__ import annotations
 
 import hmac
+import logging
 import os
 import sys
 from datetime import datetime, timezone
@@ -29,6 +30,12 @@ from pydantic import BaseModel, Field
 import converter
 import db
 import forwarder
+from analytics import (
+    router as analytics_router,
+    init_analytics,
+    install_log_buffer,
+    tracker,
+)
 
 
 # --------------------------------------------------------------------------- #
@@ -63,9 +70,15 @@ CREDITS_API_KEY = os.environ.get("CREDITS_API_KEY", "")
 ADMIN_KEY = os.environ.get("ADMIN_KEY", "")
 
 
+# Логгер для дашборда аналитики (страница «Логи» ловит logging, не stdout).
+_srv_log = logging.getLogger("server")
+_srv_log.setLevel(logging.INFO)
+
+
 def _log(msg: str) -> None:
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%SZ")
     print(f"[server] {ts} {msg}", file=sys.stdout, flush=True)
+    _srv_log.info(msg)
 
 
 def _check_bearer(request: Request, expected: str, *, what: str) -> None:
@@ -170,15 +183,32 @@ class SettingsIn(BaseModel):
     forward_api_key: str = ""
 
 
+def _report_latency_ms(req: UsageIn) -> Optional[int]:
+    """Latency отчёта из request_date/response_date (если пайп передал оба)."""
+    if not (req.request_date and req.response_date):
+        return None
+    try:
+        t0 = datetime.fromisoformat(req.request_date.replace("Z", "+00:00"))
+        t1 = datetime.fromisoformat(req.response_date.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return max(0, int((t1 - t0).total_seconds() * 1000))
+
+
 # --------------------------------------------------------------------------- #
 # App
 # --------------------------------------------------------------------------- #
 app = FastAPI(title="Сервер списания кредитов", version="1.0.0")
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent / "templates"))
 
+# Дашборд аналитики (/dashboard + /stats/*) — самодостаточный пакет analytics/.
+app.include_router(analytics_router)
+
 
 @app.on_event("startup")
 async def _on_startup() -> None:
+    install_log_buffer()  # захват логов для страницы «Логи» дашборда
+    await init_analytics()  # БД аналитики + опрос баланса (если задан ключ)
     # .env разворачивает стартовую конфигурацию пересылки. Если в GUI уже задано
     # непустое значение — оно сохранится (init_db перетирает только пустые поля).
     env_overrides = {
@@ -260,6 +290,29 @@ async def post_usage(req: UsageIn, request: Request):
     # Создаём pending-запись и планируем пересылку (fire-and-forget).
     await db.create_forward_entry(DB_PATH, record_id)
     forwarder.schedule_forward(DB_PATH)
+
+    # Аналитика дашборда (/dashboard): пишем копию отчёта в analytics.db.
+    # Сами LLM не вызываем — точкой трекинга служит приём отчёта от пайпа.
+    # Webhook аналитики выключен: пересылку на devbim.com делает forwarder выше
+    # (иначе было бы двойное списание).
+    await tracker.track(
+        model_requested=model or db.DEFAULT_RATE_KEY,
+        model_actual=model or db.DEFAULT_RATE_KEY,
+        usage={
+            "prompt_tokens": req.prompt_tokens,
+            "completion_tokens": req.completion_tokens,
+            "total_tokens": req.tokens,
+            "cost": req.cost_usd,
+        },
+        email=req.email.strip(),
+        user_id=(req.user_id or "").strip() or None,
+        latency_ms=_report_latency_ms(req),
+        status="success" if req.is_success else "error",
+        error=(req.error_message or "").strip() or None,
+        task=req.function.strip(),  # имя функции (агента) Open WebUI
+        request_date=req.request_date,
+        response_date=req.response_date,
+    )
 
     _log(
         f"USAGE id={record_id} email={req.email!r} func={req.function!r} "
