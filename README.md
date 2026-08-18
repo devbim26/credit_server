@@ -139,7 +139,7 @@ curl https://credits.dev-bim.com/health   # → {"status":"ok"}
 
    | Поле | Значение |
    |---|---|
-   | `API_BASE_URL` | `https://openrouter.ai/api/v1` |
+   | `API_BASE_URL` | `https://openrouter.ai/api/v1` (см. «Подключение ImageRouter» ниже) |
    | `API_KEY` | ваш ключ OpenRouter (`sk-or-v1-...`) |
    | `MODEL_NAME` | имя модели (например `google/gemini-3.5-flash`). **Это же — ключ курса** в GUI сервера (вкладка «Курсы»). |
    | `CREDITS_SERVER_URL` | `https://credits.dev-bim.com` (публичный) или `http://localhost:4010` (локально) |
@@ -156,6 +156,30 @@ curl https://credits.dev-bim.com/health   # → {"status":"ok"}
 > У reasoning-моделей (GLM-4.5/5.2, DeepSeek-R1...) текст берётся из
 > `reasoning_content`, если `content` пуст. Для полноценной работы инструментов
 > используйте функцию Open WebUI с поддержкой tool-calling.
+
+### Подключение провайдера ImageRouter (imagerouter.io)
+
+[ImageRouter](https://docs.imagerouter.io/) — шлюз по типу OpenRouter (модели
+вида `openai/gpt-4o-mini`, `google/...`), полностью OpenAI-совместимый. Подходит
+тем же пайпом без доработок кода:
+
+1. Получите ключ: [imagerouter.io/api-keys](https://imagerouter.io/api-keys).
+2. В Valves той же функции «Агент со списанием кредитов»:
+
+   | Поле | Значение |
+   |---|---|
+   | `API_BASE_URL` | `https://api.imagerouter.io/v1/openai` — **именно `/v1/openai`**, а не `/v1` |
+   | `API_KEY` | ключ ImageRouter |
+   | `MODEL_NAME` | ID модели с ImageRouter (например `openai/gpt-4o-mini`). **Это же — ключ курса** в GUI сервера. Список моделей: `GET https://api.imagerouter.io/v3/models` |
+
+3. Списание кредитов на нашей стороне работает автоматически:
+   ImageRouter отдаёт `usage.cost` (число, upstream-стоимость в USD) — пайп
+   пробрасывает её как `cost_usd`, сервер фиксирует `cost_source="provider"`
+   (🟢 зелёная точка в GUI). Тарифы $/млн задавать **не нужно**.
+
+> ⚠️ ImageRouter округляет списание своих кредитов вверх до 1/10 000 $
+> (верхнеуровневое поле `cost` ответа) — для сверки используйте `usage.cost`,
+> именно её мы и записываем.
 
 ### Вариант B: встроить списание в свою функцию
 
@@ -219,6 +243,7 @@ URL/ключ сниппет читает из переменных окруже�
 | Провайдер | Отдаёт $ в ответе? | Откуда берём $ |
 |---|---|---|
 | **OpenRouter** | ✅ да, `usage.cost` | напрямую из ответа (самая точная величина) |
+| **ImageRouter** | ✅ да, `usage.cost` (число) | напрямую из ответа (upstream-стоимость в USD) |
 | **z.ai / GLM** | ❌ нет | считаем по тарифам $/млн токенов из GUI |
 
 **Приоритет источника $:**

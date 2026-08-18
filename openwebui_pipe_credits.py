@@ -1,7 +1,7 @@
 """
 title: Агент со списанием кредитов
 author: credits-system
-version: 0.2.2
+version: 0.2.3
 required_open_webui_version: 0.5.0
 requirements: httpx
 """
@@ -65,8 +65,9 @@ def _extract_cost_usd(usage: dict | None) -> float | None:
     """Извлечь стоимость в USD из usage ответа провайдера.
 
     OpenRouter возвращает usage.cost как объект {"total_cost": 0.000123}
-    (а в старых версиях — как число). z.ai/GLM поля cost не возвращают —
-    тогда вернём None, и сервер посчитает $ по тарифам $/млн токенов.
+    (а в старых версиях — как число). ImageRouter — числом
+    (usage.cost = upstream-стоимость в USD). z.ai/GLM поля cost не
+    возвращают — тогда вернём None, и сервер посчитает $ по тарифам $/млн.
     """
     if not usage:
         return None
@@ -228,15 +229,18 @@ class Pipe:
     """Прокси к OpenAI-совместимому API (OpenRouter) со списанием кредитов."""
 
     class Valves(BaseModel):
-        # --- подключение к модели (OpenRouter / любой OpenAI-совместимый эндпоинт) ---
+        # --- подключение к модели (OpenRouter / ImageRouter / любой OpenAI-совместимый эндпоинт) ---
         API_BASE_URL: str = Field(
             default="https://openrouter.ai/api/v1",
             description="Базовый URL API (OpenAI-совместимый). "
-            "Боевой OpenRouter: https://openrouter.ai/api/v1",
+            "OpenRouter: https://openrouter.ai/api/v1; "
+            "ImageRouter: https://api.imagerouter.io/v1/openai "
+            "(именно /v1/openai, не /v1)",
         )
         API_KEY: str = Field(
             default="",
-            description="API-ключ модели (Authorization: Bearer). Для OpenRouter: sk-or-v1-...",
+            description="API-ключ модели (Authorization: Bearer). "
+            "OpenRouter: sk-or-v1-...; ImageRouter: ключ с imagerouter.io/api-keys",
             json_schema_extra={"input": {"type": "password"}},
         )
         MODEL_NAME: str = Field(
