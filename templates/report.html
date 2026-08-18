@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Отчёты · Сервер списания кредитов</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body{font-family:Segoe UI,Arial,sans-serif}
+  table{border-collapse:collapse;width:100%}
+  th,td{border:1px solid #e2e8f0;padding:6px 10px;font-size:13px}
+  th{background:#f1f5f9;text-align:left;white-space:nowrap}
+  td.r,th.r{text-align:right}
+  tr.total td{font-weight:700;background:#f8fafc}
+  .muted{color:#64748b}
+</style>
+</head>
+<body class="bg-slate-100 min-h-screen">
+<div class="max-w-6xl mx-auto p-4">
+
+  <div class="flex items-center gap-3 flex-wrap mb-4">
+    <h1 class="text-xl font-bold">Отчёты использования</h1>
+    <span class="muted text-sm">кредиты · токены · $ · по пользователям и периодам</span>
+    <span class="flex-1"></span>
+    <a href="/admin" class="text-blue-600 text-sm hover:underline">← Админка</a>
+    <a href="/dashboard" class="text-blue-600 text-sm hover:underline">Дашборд →</a>
+  </div>
+
+  <div class="bg-white rounded-xl shadow p-4 mb-4">
+    <div class="flex gap-3 flex-wrap items-end text-sm">
+      <label>Пользователь
+        <select id="f-email" class="block border rounded px-2 py-1.5 mt-1 min-w-52">
+          <option value="">— все пользователи —</option>
+        </select>
+      </label>
+      <label>Группировка
+        <select id="f-group" class="block border rounded px-2 py-1.5 mt-1">
+          <option value="month">по месяцам</option>
+          <option value="day">по дням</option>
+          <option value="email">по пользователям</option>
+        </select>
+      </label>
+      <label>С
+        <input id="f-from" type="date" class="block border rounded px-2 py-1.5 mt-1"/>
+      </label>
+      <label>По
+        <input id="f-to" type="date" class="block border rounded px-2 py-1.5 mt-1"/>
+      </label>
+      <button id="b-quick-month" class="border rounded px-3 py-1.5 hover:bg-slate-50">Этот месяц</button>
+      <button id="b-quick-prev" class="border rounded px-3 py-1.5 hover:bg-slate-50">Прошлый месяц</button>
+      <button id="b-quick-year" class="border rounded px-3 py-1.5 hover:bg-slate-50">Этот год</button>
+      <button id="b-apply" class="bg-blue-600 text-white rounded px-4 py-1.5 hover:bg-blue-700">Показать</button>
+      <button id="b-xlsx" class="bg-green-600 text-white rounded px-4 py-1.5 hover:bg-green-700">⬇ Excel</button>
+      <button id="b-csv" class="border rounded px-3 py-1.5 hover:bg-slate-50">⬇ CSV</button>
+      <span class="flex-1"></span>
+      <label class="muted">ADMIN_KEY
+        <input id="f-key" type="password" placeholder="ADMIN_KEY" class="block border rounded px-2 py-1.5 mt-1 w-40"/>
+      </label>
+    </div>
+    <div class="muted text-xs mt-2">
+      Период — по датам операций (в БД хранится UTC). Пустые границы = без ограничения.
+    </div>
+  </div>
+
+  <div class="bg-white rounded-xl shadow p-4 mb-4 flex gap-6 flex-wrap" id="totals"></div>
+
+  <div class="bg-white rounded-xl shadow p-4 overflow-x-auto">
+    <table id="tbl">
+      <thead id="thead"></thead>
+      <tbody id="tbody"><tr><td colspan="8" class="muted">Нажмите «Показать»</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const KEY_STORE="credits_report_admin_key";
+$("f-key").value=localStorage.getItem(KEY_STORE)||"";
+$("f-key").addEventListener("change",()=>localStorage.setItem(KEY_STORE,$("f-key").value));
+
+function qs(extra={}){
+  const p=new URLSearchParams();
+  const email=$("f-email").value; if(email)p.set("email",email);
+  const g=$("f-group").value; if(g)p.set("group_by",g);
+  const from=$("f-from").value; if(from)p.set("date_from",from);
+  const to=$("f-to").value; if(to)p.set("date_to",to);
+  for(const [k,v] of Object.entries(extra)) p.set(k,v);
+  return p.toString();
+}
+function headers(){return $("f-group").value==="email"
+  ?["Email","Запросов","Успешных","Токены","Токены input","Токены output","Кредиты","Стоимость $"]
+  :["Месяц","Запросов","Успешных","Токены","Токены input","Токены output","Кредиты","Стоимость $"];}
+function esc(s){return String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+const fmt=(v,d=0)=>v==null?"—":Number(v).toLocaleString("ru-RU",{maximumFractionDigits:d,minimumFractionDigits:0});
+const usd=v=>v==null?"—":"$"+Number(v).toFixed(4);
+
+async function loadEmails(){
+  try{
+    const r=await fetch("/api/report/emails",{headers:auth()});
+    if(r.status===401){alert("Неверный ADMIN_KEY");return;}
+    const d=await r.json();
+    const sel=$("f-email"),cur=sel.value;
+    sel.innerHTML='<option value="">— все пользователи —</option>'+
+      d.emails.map(e=>`<option value="${esc(e)}">${esc(e)}</option>`).join("");
+    if(d.emails.includes(cur))sel.value=cur;
+  }catch(e){console.error(e);}
+}
+function auth(){const k=$("f-key").value.trim();return k?{"Authorization":"Bearer "+k}:{};}
+
+async function loadReport(){
+  const tbody=$("tbody");
+  tbody.innerHTML='<tr><td colspan="8" class="muted">Загрузка…</td></tr>';
+  try{
+    const r=await fetch("/api/report?"+qs(),{headers:auth()});
+    if(r.status===401){tbody.innerHTML='<tr><td colspan="8" class="muted">401 — введите ADMIN_KEY справа сверху</td></tr>';return;}
+    const d=await r.json();
+    $("thead").innerHTML="<tr>"+headers().map((h,i)=>`<th class="${i?'r':''}">${h}</th>`).join("")+"</tr>";
+    const rows=d.rows;
+    if(!rows.length){tbody.innerHTML='<tr><td colspan="8" class="muted">Нет данных за выбранный период</td></tr>';}
+    else tbody.innerHTML=rows.map(r=>`<tr>
+      <td>${esc(r.period)}</td>
+      <td class="r">${fmt(r.requests)}</td>
+      <td class="r">${fmt(r.ok_requests)}</td>
+      <td class="r">${fmt(r.tokens)}</td>
+      <td class="r">${fmt(r.prompt_tokens)}</td>
+      <td class="r">${fmt(r.completion_tokens)}</td>
+      <td class="r">${fmt(r.credits,2)}</td>
+      <td class="r">${usd(r.cost_usd)}</td></tr>`).join("")
+      +`<tr class="total"><td>Итого</td>
+        <td class="r">${fmt(d.totals.requests)}</td>
+        <td class="r">${fmt(d.totals.ok_requests)}</td>
+        <td class="r">${fmt(d.totals.tokens)}</td>
+        <td class="r">${fmt(d.totals.prompt_tokens)}</td>
+        <td class="r">${fmt(d.totals.completion_tokens)}</td>
+        <td class="r">${fmt(d.totals.credits,2)}</td>
+        <td class="r">${usd(d.totals.cost_usd)}</td></tr>`;
+    const t=d.totals;
+    $("totals").innerHTML=[["Запросов",fmt(t.requests)+" ("+fmt(t.ok_requests)+" успешных)"],
+      ["Токены",fmt(t.tokens)+" ("+fmt(t.prompt_tokens)+" вх / "+fmt(t.completion_tokens)+" вых)"],
+      ["Кредиты",fmt(t.credits,2)],["Стоимость $",usd(t.cost_usd)]]
+      .map(([k,v])=>`<div><div class="muted text-xs">${k}</div><div class="text-lg font-bold">${v}</div></div>`).join("");
+  }catch(e){tbody.innerHTML='<tr><td colspan="8" class="muted">Ошибка: '+esc(e.message)+'</td></tr>';}
+}
+
+// Быстрые периоды (локальная дата пользователя).
+function setPeriod(from,to){$("f-from").value=from;$("f-to").value=to;loadReport();}
+const iso=d=>d.toISOString().slice(0,10);
+$("b-quick-month").onclick=()=>{const n=new Date();setPeriod(iso(new Date(n.getFullYear(),n.getMonth(),1)),iso(new Date(n.getFullYear(),n.getMonth()+1,0)));};
+$("b-quick-prev").onclick=()=>{const n=new Date();setPeriod(iso(new Date(n.getFullYear(),n.getMonth()-1,1)),iso(new Date(n.getFullYear(),n.getMonth(),0)));};
+$("b-quick-year").onclick=()=>{const n=new Date();setPeriod(iso(new Date(n.getFullYear(),0,1)),iso(new Date(n.getFullYear(),11,31)));};
+$("b-apply").onclick=loadReport;
+$("f-group").addEventListener("change",loadReport);
+$("f-email").addEventListener("change",loadReport);
+function download(format){
+  const k=$("f-key").value.trim();
+  const url="/api/report/export?"+qs({format});
+  // Ключ через query нельзя — делаем fetch и_blob-скачивание с заголовком.
+  fetch(url,{headers:k?{"Authorization":"Bearer "+k}:{}}).then(r=>{
+    if(!r.ok)throw new Error("HTTP "+r.status);
+    return r.blob().then(b=>{
+      const a=document.createElement("a");
+      a.href=URL.createObjectURL(b);
+      a.download="report."+(format==="csv"?"csv":"xlsx");
+      a.click();URL.revokeObjectURL(a.href);
+    });
+  }).catch(e=>alert("Экспорт не удался: "+e.message));
+}
+$("b-xlsx").onclick=()=>download("xlsx");
+$("b-csv").onclick=()=>download("csv");
+
+loadEmails().then(loadReport);
+</script>
+</body>
+</html>

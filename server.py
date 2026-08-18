@@ -23,7 +23,7 @@ from fastapi import (
     Query,
     Request,
 )
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
@@ -344,6 +344,18 @@ async def admin_page(request: Request):
 
 
 # --------------------------------------------------------------------------- #
+# GUI: страница отчётов
+# --------------------------------------------------------------------------- #
+@app.get("/report", response_class=HTMLResponse)
+async def report_page(request: Request):
+    # Как и /admin: страница без ключа, ключ (ADMIN_KEY) проверяется в JS на /api/*.
+    return templates.TemplateResponse(
+        "report.html",
+        {"request": request, "base_url": BASE_URL, "has_admin_key": bool(ADMIN_KEY)},
+    )
+
+
+# --------------------------------------------------------------------------- #
 # GUI API: курсы
 # --------------------------------------------------------------------------- #
 @app.get("/api/rates")
@@ -466,6 +478,118 @@ async def api_set_settings(settings: SettingsIn, request: Request):
     if settings.forward_api_key.strip():
         await db.set_setting(DB_PATH, "forward_api_key", settings.forward_api_key.strip())
     return {"ok": True}
+
+
+# --------------------------------------------------------------------------- #
+# GUI API: отчёты (по пользователям / за период, с экспортом)
+# --------------------------------------------------------------------------- #
+def _report_filters(
+    email: Optional[str],
+    date_from: Optional[str],
+    date_to: Optional[str],
+    group_by: str,
+) -> dict:
+    return {
+        "email": (email or "").strip() or None,
+        "date_from": date_from,
+        "date_to": date_to,
+        "group_by": group_by,
+    }
+
+
+@app.get("/api/report/emails")
+async def api_report_emails(request: Request):
+    _check_bearer(request, ADMIN_KEY, what="ADMIN")
+    return {"emails": await db.list_report_emails(DB_PATH)}
+
+
+@app.get("/api/report")
+async def api_report(
+    request: Request,
+    email: Optional[str] = Query(None),
+    date_from: Optional[str] = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    date_to: Optional[str] = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    group_by: str = Query("month", pattern="^(month|day|email)$"),
+):
+    _check_bearer(request, ADMIN_KEY, what="ADMIN")
+    params = _report_filters(email, date_from, date_to, group_by)
+    rows = await db.get_report(DB_PATH, **params)
+    totals = {
+        "requests": sum(r["requests"] for r in rows),
+        "ok_requests": sum(r["ok_requests"] for r in rows),
+        "tokens": sum(r["tokens"] or 0 for r in rows),
+        "prompt_tokens": sum(r["prompt_tokens"] or 0 for r in rows),
+        "completion_tokens": sum(r["completion_tokens"] or 0 for r in rows),
+        "credits": round(sum(r["credits"] or 0 for r in rows), 2),
+        "cost_usd": round(sum(r["cost_usd"] or 0 for r in rows), 6),
+    }
+    return {"params": params, "rows": rows, "totals": totals}
+
+
+@app.get("/api/report/export")
+async def api_report_export(
+    request: Request,
+    email: Optional[str] = Query(None),
+    date_from: Optional[str] = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    date_to: Optional[str] = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    group_by: str = Query("month", pattern="^(month|day|email)$"),
+    format: str = Query("xlsx", pattern="^(xlsx|csv)$"),
+):
+    """Отчёт файлом: format=xlsx (Excel, openpyxl) или csv. Фильтры те же."""
+    _check_bearer(request, ADMIN_KEY, what="ADMIN")
+    params = _report_filters(email, date_from, date_to, group_by)
+    rows = await db.get_report(DB_PATH, **params)
+
+    headers = ["Период" if params["group_by"] != "email" else "Email",
+               "Запросов", "Успешных", "Токены", "Токены input", "Токены output",
+               "Кредиты", "Стоимость $"]
+    table = [[r["period"], r["requests"], r["ok_requests"], r["tokens"],
+              r["prompt_tokens"], r["completion_tokens"], r["credits"],
+              r["cost_usd"]] for r in rows]
+
+    period_lbl = "по всем пользователям" if not params["email"] else params["email"]
+    range_lbl = (f"{params['date_from'] or '…'} — {params['date_to'] or '…'}")
+    fname_base = f"report_{params['email'] or 'all'}_{params['group_by']}"
+
+    if format == "csv":
+        import csv
+        import io
+        buf = io.StringIO()
+        w = csv.writer(buf)
+        w.writerow(headers)
+        w.writerows(table)
+        return Response(
+            content="\ufeff" + buf.getvalue(),  # BOM: Excel открывает UTF-8 корректно
+            media_type="text/csv; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="{fname_base}.csv"'},
+        )
+
+    # xlsx по умолчанию
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Отчёт"
+    ws.append(["Отчёт использования", period_lbl, range_lbl])
+    ws["A1"].font = Font(bold=True)
+    ws.append(headers)
+    for c in ws[2]:
+        c.font = Font(bold=True, color="FFFFFF")
+        c.fill = PatternFill("solid", fgColor="4472C4")
+    for row in table:
+        ws.append(row)
+    widths = [22, 10, 10, 12, 13, 14, 10, 12]
+    for i, wd in enumerate(widths, 1):
+        ws.column_dimensions[ws.cell(row=2, column=i).column_letter].width = wd
+    import io
+    buf = io.BytesIO()
+    wb.save(buf)
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{fname_base}.xlsx"'},
+    )
 
 
 # --------------------------------------------------------------------------- #

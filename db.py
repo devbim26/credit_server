@@ -568,3 +568,84 @@ async def get_all_settings(db_path: str) -> dict[str, str]:
 # Защита от случайной передачи sqlite3-объекта туда, где ждали значение.
 def _coerce(v: Any) -> Any:
     return v if not isinstance(v, sqlite3.Row) else dict(v)
+
+
+# --- Отчёты (по пользователям и за период) ---------------------------------
+
+async def list_report_emails(db_path: str) -> list[str]:
+    """Все email из лога использования (для селектора отчёта)."""
+    async with aiosqlite.connect(db_path) as db:
+        async with db.execute(
+            "SELECT DISTINCT email FROM usage_records ORDER BY email"
+        ) as cur:
+            return [r[0] for r in await cur.fetchall()]
+
+
+async def get_report(
+    db_path: str,
+    *,
+    email: Optional[str] = None,
+    date_from: Optional[str] = None,  # "YYYY-MM-DD" (включительно, локальная дата)
+    date_to: Optional[str] = None,    # "YYYY-MM-DD" (включительно)
+    group_by: str = "month",         # month | day | email (в разрезе пользователей)
+) -> list[dict[str, Any]]:
+    """Агрегированный отчёт за период.
+
+    op_timestamp в БД — UTC (ISO). Границы периода сравниваются по префиксу
+    даты, поэтому date_to включается целиком (до 23:59:59).
+    group_by='email' даёт построчную разбивку по пользователям за период;
+    'month'/'day' — временную разбивку (по всем или по выбранному email).
+    """
+    if group_by not in {"month", "day", "email"}:
+        raise ValueError("group_by должен быть month | day | email")
+
+    where: list[str] = []
+    params: list[Any] = []
+    if email:
+        where.append("email = ?")
+        params.append(email)
+    if date_from:
+        where.append("substr(op_timestamp, 1, 10) >= ?")
+        params.append(date_from)
+    if date_to:
+        where.append("substr(op_timestamp, 1, 10) <= ?")
+        params.append(date_to)
+    where_sql = ("WHERE " + " AND ".join(where)) if where else ""
+
+    period_expr = {
+        "month": "substr(op_timestamp, 1, 7)",   # YYYY-MM
+        "day": "substr(op_timestamp, 1, 10)",    # YYYY-MM-DD
+        "email": "email",
+    }[group_by]
+    period_title = {"month": "Месяц", "day": "Дата", "email": "Email"}[group_by]
+
+    sql = (
+        f"SELECT {period_expr} AS period, "
+        "  COUNT(*) AS requests, "
+        "  SUM(is_success) AS ok_requests, "
+        "  SUM(tokens) AS tokens, "
+        "  SUM(COALESCE(prompt_tokens, 0)) AS prompt_tokens, "
+        "  SUM(COALESCE(completion_tokens, 0)) AS completion_tokens, "
+        "  ROUND(SUM(credits), 2) AS credits, "
+        "  ROUND(SUM(cost_usd), 6) AS cost_usd "
+        f"FROM usage_records {where_sql} "
+        "GROUP BY period ORDER BY period"
+    ) if group_by != "email" else (
+        "SELECT email AS period, "
+        "  COUNT(*) AS requests, "
+        "  SUM(is_success) AS ok_requests, "
+        "  SUM(tokens) AS tokens, "
+        "  SUM(COALESCE(prompt_tokens, 0)) AS prompt_tokens, "
+        "  SUM(COALESCE(completion_tokens, 0)) AS completion_tokens, "
+        "  ROUND(SUM(credits), 2) AS credits, "
+        "  ROUND(SUM(cost_usd), 6) AS cost_usd "
+        f"FROM usage_records {where_sql} "
+        "GROUP BY email ORDER BY email"
+    )
+    async with aiosqlite.connect(db_path) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(sql, params) as cur:
+            rows = [dict(r) for r in await cur.fetchall()]
+    for r in rows:
+        r["ok_requests"] = r["ok_requests"] or 0
+    return rows

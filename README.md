@@ -302,6 +302,9 @@ URL/ключ сниппет читает из переменных окруже�
 |---|---|---|
 | POST | `/api/usage` | принять данные от сниппета (Bearer `CREDITS_API_KEY`) |
 | GET  | `/admin` | веб-GUI |
+| GET  | `/report` | страница отчётов: по каждому пользователю / общий, по месяцам/дням, настраиваемый период, экспорт Excel/CSV |
+| GET  | `/api/report?email=&date_from=&date_to=&group_by=month\|day\|email` | данные отчёта (Bearer `ADMIN_KEY`) |
+| GET  | `/api/report/export?format=xlsx\|csv&...` | отчёт файлом (Excel через openpyxl / CSV с BOM) |
 | GET  | `/dashboard` | дашборд аналитики (графики/пользователи/логи/туннель; `ANALYTICS_API_KEY` при доступе через туннель) |
 | GET  | `/stats/*` | JSON-API дашборда (summary, timeline, models, requests, emails, logs, tunnel) |
 | GET/POST/DELETE | `/api/rates[/{model}]` | управление курсами (Bearer `ADMIN_KEY`) |
