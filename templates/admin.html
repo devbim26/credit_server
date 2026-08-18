@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Списание кредитов — админка</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: 'Segoe UI', system-ui, sans-serif; }
+    /* !important нужен, чтобы перекрыть утилитарный класс bg-white из Tailwind CDN,
+       иначе активная вкладка получит белый текст на белом фоне (текст исчезает). */
+    .tab-active { background:#1e293b !important; color:#fff !important; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen">
+<div class="max-w-6xl mx-auto p-4 sm:p-6">
+
+  <header class="flex flex-wrap items-center justify-between gap-3 mb-6">
+    <h1 class="text-2xl font-bold text-slate-900">Списание кредитов</h1>
+    <div class="flex items-center gap-2">
+      <input id="adminKey" type="password" placeholder="ADMIN_KEY"
+             class="px-3 py-1.5 rounded border border-slate-300 bg-white text-sm w-48"
+             {% if not has_admin_key %}disabled{% endif %} />
+      <button onclick="saveKey()" class="px-3 py-1.5 rounded bg-slate-700 text-white text-sm">Сохранить</button>
+      <span id="keyHint" class="text-xs text-slate-500"></span>
+    </div>
+  </header>
+
+  <!-- Сводные итоги -->
+  <div id="summaryBar" class="grid grid-cols-3 gap-3 mb-6">
+    <div class="bg-white rounded-lg shadow p-4">
+      <div class="text-xs text-slate-500 uppercase">Стоимость, $</div>
+      <div id="sumCost" class="text-2xl font-bold text-emerald-600 mono mt-1">$0.00</div>
+    </div>
+    <div class="bg-white rounded-lg shadow p-4">
+      <div class="text-xs text-slate-500 uppercase">Кредиты</div>
+      <div id="sumCredits" class="text-2xl font-bold text-slate-800 mono mt-1">0</div>
+    </div>
+    <div class="bg-white rounded-lg shadow p-4">
+      <div class="text-xs text-slate-500 uppercase">Всего вызовов</div>
+      <div id="sumCalls" class="text-2xl font-bold text-slate-800 mono mt-1">0</div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <nav class="flex flex-wrap gap-2 mb-6">
+    <button data-tab="stats"   class="tab-btn px-4 py-2 rounded-lg bg-white border">Статистика</button>
+    <button data-tab="rates"   class="tab-btn px-4 py-2 rounded-lg bg-white border">Курсы</button>
+    <button data-tab="records" class="tab-btn px-4 py-2 rounded-lg bg-white border">Лог использования</button>
+    <button data-tab="forward" class="tab-btn px-4 py-2 rounded-lg bg-white border">Пересылка</button>
+    <button data-tab="balances" class="tab-btn px-4 py-2 rounded-lg bg-white border">Балансы</button>
+    <button data-tab="settings"class="tab-btn px-4 py-2 rounded-lg bg-white border">Настройки</button>
+  </nav>
+
+  <!-- ============ Статистика ============ -->
+  <section id="tab-stats" class="tab-panel">
+    <div class="flex flex-wrap items-end gap-3 mb-4">
+      <div>
+        <label class="block text-xs text-slate-500 mb-1">Группировать по</label>
+        <select id="statGroup" class="px-3 py-1.5 rounded border border-slate-300 bg-white">
+          <option value="email">Email</option>
+          <option value="function">Функция</option>
+          <option value="model">Модель</option>
+        </select>
+      </div>
+      <button onclick="loadStats()" class="px-4 py-1.5 rounded bg-blue-600 text-white">Обновить</button>
+    </div>
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-50 text-slate-500 uppercase text-xs">
+          <tr>
+            <th class="text-left px-4 py-2" id="statDimHeader">Email</th>
+            <th class="text-right px-4 py-2">Вызовов</th>
+            <th class="text-right px-4 py-2">Токенов</th>
+            <th class="text-right px-4 py-2">Стоимость, $</th>
+            <th class="text-right px-4 py-2">Кредитов</th>
+          </tr>
+        </thead>
+        <tbody id="statsBody" class="divide-y divide-slate-100"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ Курсы ============ -->
+  <section id="tab-rates" class="tab-panel hidden">
+    <div class="bg-white rounded-lg shadow p-4 mb-4">
+      <h2 class="font-semibold mb-3">Добавить / изменить курс</h2>
+      <div class="flex flex-wrap items-end gap-3">
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">Имя модели</label>
+          <input id="rateModel" placeholder="напр. gpt-4o или __default__"
+                 class="px-3 py-1.5 rounded border border-slate-300 bg-white w-64" />
+        </div>
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">Базовый курс: кр / 1k ток.</label>
+          <input id="rateValue" type="number" step="0.01" min="0"
+                 class="px-3 py-1.5 rounded border border-slate-300 bg-white w-40" />
+        </div>
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">Input курс: кр / 1k (опц.)</label>
+          <input id="rateInput" type="number" step="0.01" min="0" placeholder="—"
+                 class="px-3 py-1.5 rounded border border-slate-300 bg-white w-36" />
+        </div>
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">Output курс: кр / 1k (опц.)</label>
+          <input id="rateOutput" type="number" step="0.01" min="0" placeholder="—"
+                 class="px-3 py-1.5 rounded border border-slate-300 bg-white w-36" />
+        </div>
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">Input $/млн (опц.)</label>
+          <input id="rateCostIn" type="number" step="0.001" min="0" placeholder="—"
+                 class="px-3 py-1.5 rounded border border-slate-300 bg-white w-32" />
+        </div>
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">Output $/млн (опц.)</label>
+          <input id="rateCostOut" type="number" step="0.001" min="0" placeholder="—"
+                 class="px-3 py-1.5 rounded border border-slate-300 bg-white w-32" />
+        </div>
+        <button onclick="saveRate()" class="px-4 py-1.5 rounded bg-blue-600 text-white">Сохранить</button>
+      </div>
+      <p class="text-xs text-slate-500 mt-2">
+        Строка <span class="mono">__default__</span> применяется, если модель не задана.
+        Поля <b>Input/Output</b> включают раздельную тарификацию: если они заданы
+        и в отчёте есть <span class="mono">prompt_tokens/completion_tokens</span>,
+        кредиты считаются по ним; иначе — по базовому курсу.
+        Поля <b>Input/Output $/млн</b> — цена в долларах за 1М токенов (как у провайдеров).
+        Нужны, чтобы считать реальную стоимость для провайдеров без поля <span class="mono">cost</span>
+        в ответе (z.ai/GLM). Если провайдер сам отдаёт $ (OpenRouter) — тарифы не нужны.
+      </p>
+    </div>
+    <div class="bg-white rounded-lg shadow overflow-hidden overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-50 text-slate-500 uppercase text-xs">
+          <tr>
+            <th class="text-left px-4 py-2">Модель</th>
+            <th class="text-right px-4 py-2">Базовый / 1k</th>
+            <th class="text-right px-4 py-2">Input / 1k</th>
+            <th class="text-right px-4 py-2">Output / 1k</th>
+            <th class="text-right px-4 py-2">Input $/млн</th>
+            <th class="text-right px-4 py-2">Output $/млн</th>
+            <th class="text-left px-4 py-2">Обновлено</th>
+            <th class="px-4 py-2"></th>
+          </tr>
+        </thead>
+        <tbody id="ratesBody" class="divide-y divide-slate-100"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ Лог использования ============ -->
+  <section id="tab-records" class="tab-panel hidden">
+    <div class="flex flex-wrap items-end gap-3 mb-4">
+      <div>
+        <label class="block text-xs text-slate-500 mb-1">Email (содержит)</label>
+        <input id="recEmail" class="px-3 py-1.5 rounded border border-slate-300 bg-white w-56" />
+      </div>
+      <div>
+        <label class="block text-xs text-slate-500 mb-1">Функция (содержит)</label>
+        <input id="recFunc" class="px-3 py-1.5 rounded border border-slate-300 bg-white w-56" />
+      </div>
+      <button onclick="loadRecords(0)" class="px-4 py-1.5 rounded bg-blue-600 text-white">Применить</button>
+      <button onclick="loadRecords(0)" class="px-4 py-1.5 rounded bg-slate-200">Обновить</button>
+    </div>
+    <div class="bg-white rounded-lg shadow overflow-hidden overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-50 text-slate-500 uppercase text-xs">
+          <tr>
+            <th class="text-left px-4 py-2">Время приёма</th>
+            <th class="text-left px-4 py-2">Email</th>
+            <th class="text-left px-4 py-2">Функция</th>
+            <th class="text-left px-4 py-2">Модель</th>
+            <th class="text-right px-4 py-2">Токены (in/out)</th>
+            <th class="text-right px-4 py-2">Тариф</th>
+            <th class="text-right px-4 py-2">Стоимость, $</th>
+            <th class="text-right px-4 py-2">Кредиты</th>
+          </tr>
+        </thead>
+        <tbody id="recordsBody" class="divide-y divide-slate-100"></tbody>
+      </table>
+    </div>
+    <div class="flex items-center justify-between mt-3 text-sm">
+      <span id="recInfo" class="text-slate-500"></span>
+      <div class="flex gap-2">
+        <button id="recPrev" onclick="recPager(-1)" class="px-3 py-1 rounded bg-white border">Назад</button>
+        <button id="recNext" onclick="recPager(1)"  class="px-3 py-1 rounded bg-white border">Вперёд</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ Пересылка ============ -->
+  <section id="tab-forward" class="tab-panel hidden">
+    <div class="flex flex-wrap items-end gap-3 mb-4">
+      <div>
+        <label class="block text-xs text-slate-500 mb-1">Статус</label>
+        <select id="fwdStatus" class="px-3 py-1.5 rounded border border-slate-300 bg-white" onchange="loadForward()">
+          <option value="">Все</option>
+          <option value="pending">pending</option>
+          <option value="ok">ok</option>
+          <option value="failed">failed</option>
+        </select>
+      </div>
+      <button onclick="loadForward()" class="px-4 py-1.5 rounded bg-slate-200">Обновить</button>
+      <button onclick="retryFailed()" class="px-4 py-1.5 rounded bg-amber-600 text-white">Перепослать failed</button>
+    </div>
+    <div class="bg-white rounded-lg shadow overflow-hidden overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-50 text-slate-500 uppercase text-xs">
+          <tr>
+            <th class="text-left px-4 py-2">Статус</th>
+            <th class="text-left px-4 py-2">Email</th>
+            <th class="text-left px-4 py-2">Функция</th>
+            <th class="text-left px-4 py-2">Модель</th>
+            <th class="text-right px-4 py-2">Токены</th>
+            <th class="text-right px-4 py-2">$</th>
+            <th class="text-right px-4 py-2">Списано</th>
+            <th class="text-right px-4 py-2">Остаток</th>
+            <th class="text-left px-4 py-2">Время ответа</th>
+            <th class="text-left px-4 py-2">HTTP</th>
+            <th class="text-left px-4 py-2">Попытки</th>
+            <th class="text-left px-4 py-2">Ошибка</th>
+          </tr>
+        </thead>
+        <tbody id="forwardBody" class="divide-y divide-slate-100"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ Балансы ============ -->
+  <section id="tab-balances" class="tab-panel hidden">
+    <div class="flex flex-wrap items-end gap-3 mb-4">
+      <button onclick="loadBalances()" class="px-4 py-1.5 rounded bg-blue-600 text-white">Обновить</button>
+    </div>
+    <div class="bg-white rounded-lg shadow overflow-hidden overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-50 text-slate-500 uppercase text-xs">
+          <tr>
+            <th class="text-left px-4 py-2">Email</th>
+            <th class="text-right px-4 py-2">Остаток</th>
+            <th class="text-right px-4 py-2">Посл. списание</th>
+            <th class="text-left px-4 py-2">Обновлено</th>
+          </tr>
+        </thead>
+        <tbody id="balancesBody" class="divide-y divide-slate-100"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ Настройки ============ -->
+  <section id="tab-settings" class="tab-panel hidden">
+    <div class="bg-white rounded-lg shadow p-4 max-w-xl">
+      <h2 class="font-semibold mb-3">Пересылка на «другой сервер»</h2>
+      <div class="mb-3">
+        <label class="block text-xs text-slate-500 mb-1">URL</label>
+        <input id="setFwdUrl" placeholder="https://other-server/api/usage"
+               class="px-3 py-1.5 rounded border border-slate-300 bg-white w-full" />
+      </div>
+      <div class="mb-4">
+        <label class="block text-xs text-slate-500 mb-1">API-ключ (Bearer)</label>
+        <input id="setFwdKey" type="password" placeholder="оставьте пустым, чтобы не менять"
+               class="px-3 py-1.5 rounded border border-slate-300 bg-white w-full" />
+        <p id="keyStatus" class="text-xs text-slate-500 mt-1"></p>
+      </div>
+      <button onclick="saveSettings()" class="px-4 py-1.5 rounded bg-blue-600 text-white">Сохранить</button>
+    </div>
+    <p class="text-xs text-slate-500 mt-3">
+      Сервер: <span class="mono">{{ base_url }}</span> · <a href="/health" class="text-blue-600">/health</a>
+    </p>
+  </section>
+
+</div>
+
+<script>
+// ---------- Summary (шапка) ----------
+async function loadSummary() {
+  try {
+    const d = await api('/api/summary');
+    document.getElementById('sumCost').textContent = '$' + Number(d.total_cost_usd || 0)
+      .toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 6 });
+    document.getElementById('sumCredits').textContent = fmt(d.total_credits);
+    document.getElementById('sumCalls').textContent = Number(d.total_calls || 0).toLocaleString('ru-RU');
+  } catch (e) { console.error(e); }
+}
+
+// ---------- Auth ----------
+function getKey() {
+  return document.getElementById('adminKey').value || localStorage.getItem('adminKey') || '';
+}
+function saveKey() {
+  const v = document.getElementById('adminKey').value;
+  if (v) localStorage.setItem('adminKey', v);
+  document.getElementById('keyHint').textContent = 'сохранено';
+  setTimeout(() => document.getElementById('keyHint').textContent = '', 1500);
+}
+// Восстановить сохранённый ключ.
+window.addEventListener('DOMContentLoaded', () => {
+  const saved = localStorage.getItem('adminKey');
+  if (saved) document.getElementById('adminKey').value = saved;
+  switchTab('stats');
+  loadStats();
+  loadSummary();
+});
+
+async function api(path, opts = {}) {
+  const headers = { ...(opts.headers || {}) };
+  const key = getKey();
+  if (key) headers['Authorization'] = 'Bearer ' + key;
+  if (opts.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
+  const resp = await fetch(path, { ...opts, headers });
+  if (resp.status === 401) {
+    alert('Неверный ADMIN_KEY. Введите ключ в правом верхнем углу.');
+    throw new Error('unauthorized');
+  }
+  if (!resp.ok) throw new Error(path + ' -> ' + resp.status);
+  return resp.json();
+}
+
+// ---------- Tabs ----------
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b =>
+    b.classList.toggle('tab-active', b.dataset.tab === name));
+  document.querySelectorAll('.tab-panel').forEach(p =>
+    p.classList.toggle('hidden', p.id !== 'tab-' + name));
+  if (name === 'stats') loadStats();
+  if (name === 'rates') loadRates();
+  if (name === 'records') loadRecords(0);
+  if (name === 'forward') loadForward();
+  if (name === 'balances') loadBalances();
+  if (name === 'settings') loadSettings();
+}
+document.querySelectorAll('.tab-btn').forEach(b =>
+  b.addEventListener('click', () => switchTab(b.dataset.tab)));
+
+// ---------- Stats ----------
+async function loadStats() {
+  const group = document.getElementById('statGroup').value;
+  document.getElementById('statDimHeader').textContent =
+    group === 'email' ? 'Email' : group === 'function' ? 'Функция' : 'Модель';
+  try {
+    const data = await api('/api/stats?group_by=' + group);
+    const body = document.getElementById('statsBody');
+    body.innerHTML = (data.rows || []).map(r => `
+      <tr>
+        <td class="px-4 py-2">${esc(r.dim || '<пусто>')}</td>
+        <td class="px-4 py-2 text-right mono">${r.calls}</td>
+        <td class="px-4 py-2 text-right mono">${fmt(r.tokens)}</td>
+        <td class="px-4 py-2 text-right mono text-emerald-700">${fmtMoney(r.cost_usd)}</td>
+        <td class="px-4 py-2 text-right mono">${fmt(r.credits)}</td>
+      </tr>`).join('') || emptyRow(5, 'нет данных');
+  } catch (e) { console.error(e); }
+}
+
+// ---------- Rates ----------
+function _numOrDash(v) {
+  return (v === null || v === undefined || v === '') ? '<span class="text-slate-300">—</span>' : v;
+}
+async function loadRates() {
+  try {
+    const rows = await api('/api/rates');
+    const body = document.getElementById('ratesBody');
+    body.innerHTML = rows.map(r => {
+      const isDef = r.model_name === '__default__';
+      const safe = esc(r.model_name).replace(/'/g, "\\'");
+      return `
+      <tr>
+        <td class="px-4 py-2 mono">${esc(r.model_name)}</td>
+        <td class="px-4 py-2 text-right mono">${r.credits_per_1k_tokens}</td>
+        <td class="px-4 py-2 text-right mono">${_numOrDash(r.credits_per_1k_input)}</td>
+        <td class="px-4 py-2 text-right mono">${_numOrDash(r.credits_per_1k_output)}</td>
+        <td class="px-4 py-2 text-right mono">${_numOrDash(r.cost_per_1m_input_usd)}</td>
+        <td class="px-4 py-2 text-right mono">${_numOrDash(r.cost_per_1m_output_usd)}</td>
+        <td class="px-4 py-2 text-slate-500 text-xs">${esc(fmtLocal(r.updated_at))}</td>
+        <td class="px-4 py-2 text-right space-x-2">
+          <button onclick="editRate('${safe}')" class="text-blue-600 text-xs">изменить</button>
+          ${isDef ? '' : `<button onclick="delRate('${safe}')" class="text-red-600 text-xs">удалить</button>`}
+        </td>
+      </tr>`;
+    }).join('') || emptyRow(8, 'нет курсов');
+  } catch (e) { console.error(e); }
+}
+function editRate(name) {
+  // Загружаем текущие значения курса и подставляем в форму.
+  api('/api/rates').then(rows => {
+    const r = (rows || []).find(x => x.model_name === name);
+    if (!r) return;
+    document.getElementById('rateModel').value = r.model_name;
+    document.getElementById('rateValue').value = r.credits_per_1k_tokens;
+    document.getElementById('rateInput').value =
+      (r.credits_per_1k_input === null || r.credits_per_1k_input === undefined) ? '' : r.credits_per_1k_input;
+    document.getElementById('rateOutput').value =
+      (r.credits_per_1k_output === null || r.credits_per_1k_output === undefined) ? '' : r.credits_per_1k_output;
+    document.getElementById('rateCostIn').value =
+      (r.cost_per_1m_input_usd === null || r.cost_per_1m_input_usd === undefined) ? '' : r.cost_per_1m_input_usd;
+    document.getElementById('rateCostOut').value =
+      (r.cost_per_1m_output_usd === null || r.cost_per_1m_output_usd === undefined) ? '' : r.cost_per_1m_output_usd;
+  });
+}
+async function saveRate() {
+  const model_name = document.getElementById('rateModel').value.trim();
+  const credits_per_1k_tokens = parseFloat(document.getElementById('rateValue').value);
+  if (!model_name || isNaN(credits_per_1k_tokens)) { alert('Заполните модель и базовый курс'); return; }
+
+  // Пустые input/output -> null (раздельная тарификация выключена).
+  const rawIn = document.getElementById('rateInput').value.trim();
+  const rawOut = document.getElementById('rateOutput').value.trim();
+  const credits_per_1k_input  = rawIn  === '' ? null : parseFloat(rawIn);
+  const credits_per_1k_output = rawOut === '' ? null : parseFloat(rawOut);
+  if ((rawIn !== '' && isNaN(credits_per_1k_input)) ||
+      (rawOut !== '' && isNaN(credits_per_1k_output))) {
+    alert('Input/Output курс должны быть числами'); return;
+  }
+
+  // Пустые $/млн -> null (расчёт стоимости $ выключен).
+  const rawCostIn = document.getElementById('rateCostIn').value.trim();
+  const rawCostOut = document.getElementById('rateCostOut').value.trim();
+  const cost_per_1m_input_usd  = rawCostIn  === '' ? null : parseFloat(rawCostIn);
+  const cost_per_1m_output_usd = rawCostOut === '' ? null : parseFloat(rawCostOut);
+  if ((rawCostIn !== '' && isNaN(cost_per_1m_input_usd)) ||
+      (rawCostOut !== '' && isNaN(cost_per_1m_output_usd))) {
+    alert('Input/Output $/млн должны быть числами'); return;
+  }
+
+  try {
+    await api('/api/rates', { method: 'POST', body: JSON.stringify({
+      model_name, credits_per_1k_tokens, credits_per_1k_input, credits_per_1k_output,
+      cost_per_1m_input_usd, cost_per_1m_output_usd
+    }) });
+    document.getElementById('rateModel').value = '';
+    document.getElementById('rateValue').value = '';
+    document.getElementById('rateInput').value = '';
+    document.getElementById('rateOutput').value = '';
+    document.getElementById('rateCostIn').value = '';
+    document.getElementById('rateCostOut').value = '';
+    loadRates();
+  } catch (e) { alert('Ошибка: ' + e.message); }
+}
+async function delRate(name) {
+  if (!confirm('Удалить курс для ' + name + '?')) return;
+  try {
+    await api('/api/rates/' + encodeURIComponent(name), { method: 'DELETE' });
+    loadRates();
+  } catch (e) { alert('Ошибка: ' + e.message); }
+}
+
+// ---------- Records ----------
+let recOffset = 0;
+const REC_LIMIT = 50;
+async function loadRecords(offset) {
+  recOffset = Math.max(0, offset || 0);
+  const email = document.getElementById('recEmail').value.trim();
+  const func = document.getElementById('recFunc').value.trim();
+  const qs = new URLSearchParams({ limit: REC_LIMIT, offset: recOffset });
+  if (email) qs.set('email', email);
+  if (func) qs.set('function', func);
+  try {
+    const data = await api('/api/records?' + qs.toString());
+    const body = document.getElementById('recordsBody');
+    body.innerHTML = (data.rows || []).map(r => {
+      const hasBD = (r.prompt_tokens !== null && r.prompt_tokens !== undefined);
+      const tokCell = hasBD
+        ? `<span>${fmt(r.tokens)}</span><span class="text-slate-400 text-xs"> (${fmt(r.prompt_tokens)}/${fmt(r.completion_tokens)})</span>`
+        : `<span>${fmt(r.tokens)}</span>`;
+      const isSplit = (r.rate_input !== null && r.rate_input !== undefined &&
+                       r.rate_output !== null && r.rate_output !== undefined);
+      const rateCell = isSplit
+        ? `<span class="text-purple-600">split</span><span class="text-slate-400 text-xs"> in=${r.rate_input}/out=${r.rate_output}</span>`
+        : `<span>${r.rate_applied}</span>`;
+      // Стоимость $: источник provider — зелёная точка, computed — серая.
+      const hasCost = (r.cost_usd !== null && r.cost_usd !== undefined);
+      const dot = r.cost_source === 'provider'
+        ? '<span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1 align-middle" title="от провайдера"></span>'
+        : '<span class="inline-block w-1.5 h-1.5 rounded-full bg-slate-300 mr-1 align-middle" title="посчитано по тарифам"></span>';
+      const costCell = hasCost
+        ? `<span class="text-emerald-700">${dot}${fmtMoney(r.cost_usd)}</span>`
+        : '<span class="text-slate-300">—</span>';
+      return `
+      <tr>
+        <td class="px-4 py-2 text-xs text-slate-500">${esc(fmtLocal(r.received_at))}</td>
+        <td class="px-4 py-2">${esc(r.email)}</td>
+        <td class="px-4 py-2">${esc(r.function)}</td>
+        <td class="px-4 py-2 mono text-xs">${esc(r.model)}</td>
+        <td class="px-4 py-2 text-right mono">${tokCell}</td>
+        <td class="px-4 py-2 text-right mono text-xs">${rateCell}</td>
+        <td class="px-4 py-2 text-right mono">${costCell}</td>
+        <td class="px-4 py-2 text-right mono font-semibold">${fmt(r.credits)}</td>
+      </tr>`;
+    }).join('') || emptyRow(8, 'нет записей');
+    document.getElementById('recInfo').textContent =
+      `${recOffset + 1}–${recOffset + (data.rows||[]).length} из ${data.total}`;
+    document.getElementById('recPrev').disabled = recOffset === 0;
+    document.getElementById('recNext').disabled = recOffset + REC_LIMIT >= data.total;
+  } catch (e) { console.error(e); }
+}
+function recPager(delta) { loadRecords(recOffset + delta * REC_LIMIT); }
+
+// ---------- Forward ----------
+async function loadForward() {
+  const status = document.getElementById('fwdStatus').value;
+  const qs = status ? ('?status=' + status + '&limit=200') : '?limit=200';
+  try {
+    const data = await api('/api/forward' + qs);
+    const body = document.getElementById('forwardBody');
+    body.innerHTML = (data.rows || []).map(r => {
+      const color = r.status === 'ok' ? 'text-green-600' : r.status === 'failed' ? 'text-red-600' : 'text-amber-600';
+      const costCell = (r.cost_usd !== null && r.cost_usd !== undefined)
+        ? `<span class="text-emerald-700">${fmtMoney(r.cost_usd)}</span>`
+        : '<span class="text-slate-300">—</span>';
+      const chargedCell = (r.resp_charged !== null && r.resp_charged !== undefined)
+        ? `<span class="mono">${fmt(r.resp_charged)}</span>`
+        : '<span class="text-slate-300">—</span>';
+      const balanceCell = (r.resp_balance !== null && r.resp_balance !== undefined)
+        ? `<span class="mono font-semibold">${fmt(r.resp_balance)}</span>`
+        : '<span class="text-slate-300">—</span>';
+      return `
+      <tr>
+        <td class="px-4 py-2 font-semibold ${color}">${r.status}</td>
+        <td class="px-4 py-2">${esc(r.email)}</td>
+        <td class="px-4 py-2">${esc(r.function)}</td>
+        <td class="px-4 py-2 mono text-xs">${esc(r.model)}</td>
+        <td class="px-4 py-2 text-right mono">${fmt(r.tokens)}</td>
+        <td class="px-4 py-2 text-right mono">${costCell}</td>
+        <td class="px-4 py-2 text-right">${chargedCell}</td>
+        <td class="px-4 py-2 text-right">${balanceCell}</td>
+        <td class="px-4 py-2 text-xs text-slate-500">${esc(fmtLocal(r.resp_datetime))}</td>
+        <td class="px-4 py-2 mono text-xs">${r.http_status ?? '—'}</td>
+        <td class="px-4 py-2 text-right mono">${r.attempts}</td>
+        <td class="px-4 py-2 text-xs text-slate-500 max-w-xs truncate" title="${esc(r.error || '')}">${esc(r.error || '')}</td>
+      </tr>`;
+    }).join('') || emptyRow(12, 'нет записей');
+  } catch (e) { console.error(e); }
+}
+async function retryFailed() {
+  try {
+    const data = await api('/api/retry-failed', { method: 'POST' });
+    alert('Запланировано повторных попыток: ' + data.retried);
+    setTimeout(loadForward, 800);
+  } catch (e) { alert('Ошибка: ' + e.message); }
+}
+
+// ---------- Balances ----------
+async function loadBalances() {
+  try {
+    const data = await api('/api/balances');
+    const body = document.getElementById('balancesBody');
+    body.innerHTML = (data.rows || []).map(r => {
+      const bal = (r.balance !== null && r.balance !== undefined)
+        ? `<span class="mono font-semibold">${fmt(r.balance)}</span>`
+        : '<span class="text-slate-300">—</span>';
+      const charged = (r.last_charged !== null && r.last_charged !== undefined)
+        ? `<span class="mono">${fmt(r.last_charged)}</span>`
+        : '<span class="text-slate-300">—</span>';
+      // last_updated — datetime из ответа; updated_at — локальное время upsert.
+      const upd = r.last_updated ? fmtLocal(r.last_updated) : fmtLocal(r.updated_at);
+      return `
+      <tr>
+        <td class="px-4 py-2">${esc(r.email)}</td>
+        <td class="px-4 py-2 text-right">${bal}</td>
+        <td class="px-4 py-2 text-right">${charged}</td>
+        <td class="px-4 py-2 text-xs text-slate-500">${esc(upd)}</td>
+      </tr>`;
+    }).join('') || emptyRow(4, 'нет записей');
+  } catch (e) { console.error(e); }
+}
+
+// ---------- Settings ----------
+async function loadSettings() {
+  try {
+    const data = await api('/api/settings');
+    document.getElementById('setFwdUrl').value = data.forward_url || '';
+    document.getElementById('keyStatus').textContent =
+      data.has_forward_api_key ? 'Ключ задан (оставьте поле пустым, чтобы не менять)' : 'Ключ не задан';
+  } catch (e) { console.error(e); }
+}
+async function saveSettings() {
+  const forward_url = document.getElementById('setFwdUrl').value.trim();
+  const forward_api_key = document.getElementById('setFwdKey').value.trim();
+  try {
+    await api('/api/settings', { method: 'POST', body: JSON.stringify({ forward_url, forward_api_key }) });
+    document.getElementById('setFwdKey').value = '';
+    loadSettings();
+  } catch (e) { alert('Ошибка: ' + e.message); }
+}
+
+// ---------- utils ----------
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+function fmt(n) { return (n ?? 0).toLocaleString('ru-RU', { maximumFractionDigits: 2 }); }
+function fmtMoney(n) {
+  // $ всегда с 2+ знаками и $-префиксом; null/0 — «—».
+  if (n === null || n === undefined || n === '') return '<span class="text-slate-300">—</span>';
+  const v = Number(n);
+  if (isNaN(v)) return '<span class="text-slate-300">—</span>';
+  return '$' + v.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 6 });
+}
+function fmtLocal(iso) {
+  // Сервер хранит время в UTC (2026-08-08T13:59:41+00:00). Показываем
+  // локальное время пользователя в коротком формате ДД.ММ ЧЧ:ММ:СС.
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return String(iso);
+  return d.toLocaleString('ru-RU', {
+    day: '2-digit', month: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit'
+  });
+}
+function emptyRow(cols, text) {
+  return `<tr><td colspan="${cols}" class="px-4 py-6 text-center text-slate-400">${text}</td></tr>`;
+}
+</script>
+</body>
+</html>

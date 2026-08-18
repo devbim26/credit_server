@@ -1,0 +1,34 @@
+# Cloudflare named tunnel «credits»
+# Постоянный URL: https://credits.dev-bim.com
+#
+# ОТДЕЛЬНЫЙ туннель для сервера списания кредитов (FastAPI server.py на :4010).
+# НЕ трогает дефолтный ~/.cloudflared/config.yml и конфиги других серверов.
+# Запуск с явным --config:
+#   cloudflared.exe tunnel --config config-credits.yml run credits
+#
+# Бэкенд (uvicorn server:app на :4010) должен слушать 0.0.0.0:4010 —
+# поднимается:  start-system-credits.bat (бэкенд + туннель) или start.bat
+#   (cwd = C:\ПРОЕКТЫ\Сервер списания кредитов — там же лежит credits.db)
+#
+# UUID туннеля: db3069c5-b8e7-491d-a433-b78f96c3ae57.
+# Туннель и DNS созданы 2026-08-07; 2026-08-18 перенесён на этот хост:
+# credentials восстановлены через install-токен `cloudflared tunnel token
+# credits` → db3069c5-….json (та же схема миграции, что у docx-gen).
+
+tunnel: db3069c5-b8e7-491d-a433-b78f96c3ae57
+credentials-file: C:\Users\vikto\.cloudflared\db3069c5-b8e7-491d-a433-b78f96c3ae57.json
+
+ingress:
+  # Маршрутизация: все запросы к credits.dev-bim.com -> бэкенд на localhost:4010.
+  - hostname: credits.dev-bim.com
+    service: http://localhost:4010
+    # /api/usage — короткие JSON-отчёты от функций Open WebUI (fire-and-forget);
+    # /admin — веб-GUI. SSE здесь нет (пайп шлёт stream:false), но originRequest
+    # единый с остальными туннелями: без буферизации чанков.
+    originRequest:
+      noTLSVerify: true
+      disableChunkedEncoding: false
+      http2Origin: false
+
+  # catch-all — ОБЯЗАТЕЛЬНО последним правилом (требование Cloudflare).
+  - service: http_status:404

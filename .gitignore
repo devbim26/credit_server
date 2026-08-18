@@ -1,0 +1,27 @@
+# Локальные секреты — НЕ коммитить.
+.env
+
+# База данных.
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Пакеты, сохраняемые mock-сервером при e2e-тестах (test_pipe/mock_external_server.py).
+test_pipe/received/
+
+# Виртуальное окружение Python.
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# Кэши стат.анализа и служебные папки агентов.
+.mypy_cache/
+.superpowers/
+
+# Служебные папки агента (ZCode).
+.zcode/
+
+# Артефакты браузерного тестирования (скриншоты/логи Playwright MCP).
+.playwright-mcp/
