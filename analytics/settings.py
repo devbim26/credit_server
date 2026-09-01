@@ -80,6 +80,9 @@ def _int(key: str, d: int) -> int:
 class _Settings:
     # tracking / DB
     analytics_db_path: str = _str("ANALYTICS_DB_PATH", "data/analytics.db")
+    # Основная БД сервера списания (usage_records + forward_log) — источник
+    # данных для вкладки «Отправлено во внешний сервис».
+    main_db_path: str = _str("DB_PATH", "credits.db")
     analytics_track_usage: bool = _bool("ANALYTICS_TRACK_USAGE", True)
     analytics_require_auth: bool = _bool("ANALYTICS_REQUIRE_AUTH", False)
     analytics_api_key: str = _str("ANALYTICS_API_KEY")

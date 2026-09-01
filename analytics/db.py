@@ -291,6 +291,45 @@ def _get_requests_sync(limit, offset, status, model, email, since_ts):
     return {"total": total, "limit": limit, "offset": offset, "items": items}
 
 
+# ---- вкладка «Отправлено во внешний сервис» ----
+# Webhook аналитики выключен (пересылку делает forwarder основного сервера,
+# см. server.py), поэтому источником служит forward_log основной БД
+# (DB_PATH/credits.db), а не пустая таблица external_reports. Поля
+# переименовываются в формат, который ждёт фронтенд дашборда.
+
+def _forward_select() -> str:
+    return """SELECT f.id,
+        COALESCE(f.sent_at, u.received_at)                        AS ts,
+        u.user_id                                                 AS open_router_web_ui_user_id,
+        u.model                                                   AS model_id,
+        u.cost_usd                                                AS message_cost,
+        u.tokens                                                  AS total_tokens,
+        u.request_date, u.response_date,
+        u.is_success,
+        u.error_message,
+        f.resp_raw                                                AS metadata_json,
+        (f.status = 'ok')                                         AS ext_ok,
+        f.status                                                  AS ext_status_text,
+        f.http_status                                             AS ext_status,
+        f.resp_email                                              AS ext_email,
+        f.resp_charged                                            AS ext_charged,
+        f.resp_balance                                            AS ext_balance,
+        f.resp_datetime                                           AS ext_datetime,
+        f.error                                                   AS ext_error
+    FROM forward_log f JOIN usage_records u ON u.id = f.usage_record_id"""
+
+
+def _has_forward_log(conn: sqlite3.Connection) -> bool:
+    return conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='forward_log'").fetchone() is not None
+
+
+def _model_name(model_id: str | None) -> str:
+    if not model_id:
+        return ""
+    return model_id.split("/", 1)[1] if "/" in model_id else model_id
+
+
 def _get_external_summary_sync(since_ts):
     where, params = (" WHERE ts >= ?", [since_ts]) if since_ts else ("", [])
     with _connect() as conn:
@@ -301,6 +340,28 @@ def _get_external_summary_sync(since_ts):
             FROM external_reports{where}""", params).fetchone())
         row = conn.execute(f"""SELECT ext_balance, ext_email, ext_datetime FROM
             external_reports{where} AND ext_balance IS NOT NULL ORDER BY id DESC LIMIT 1""", params).fetchone()
+    d["latest_balance"] = dict(row) if row else None
+    return d
+
+
+def _get_external_summary_sync_main(since_ts):
+    where, params = (" WHERE COALESCE(f.sent_at, u.received_at) >= ?", [since_ts]) if since_ts else ("", [])
+    conn = sqlite3.connect(settings.main_db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        d = dict(conn.execute(f"""SELECT COUNT(*) AS reports,
+            COALESCE(SUM(f.resp_charged),0) AS total_charged,
+            SUM(CASE WHEN f.status='ok' THEN 1 ELSE 0 END)  AS sent_ok,
+            SUM(CASE WHEN u.is_success=1 THEN 1 ELSE 0 END) AS success_reports
+            FROM forward_log f JOIN usage_records u ON u.id = f.usage_record_id{where}""",
+            params).fetchone())
+        row = conn.execute(f"""SELECT f.resp_balance AS ext_balance, f.resp_email AS ext_email,
+            f.resp_datetime AS ext_datetime FROM forward_log f
+            JOIN usage_records u ON u.id = f.usage_record_id{where}
+            {" AND" if where else " WHERE"} f.resp_balance IS NOT NULL ORDER BY f.id DESC LIMIT 1""",
+            params).fetchone()
+    finally:
+        conn.close()
     d["latest_balance"] = dict(row) if row else None
     return d
 
@@ -317,6 +378,29 @@ def _get_external_reports_sync(limit, offset, since_ts):
         for k in ("is_success", "ext_ok"):
             if d.get(k) is not None:
                 d[k] = bool(d[k])
+        items.append(d)
+    return {"total": total, "limit": limit, "offset": offset, "items": items}
+
+
+def _get_external_reports_sync_main(limit, offset, since_ts):
+    where, params = (" WHERE COALESCE(f.sent_at, u.received_at) >= ?", [since_ts]) if since_ts else ("", [])
+    conn = sqlite3.connect(settings.main_db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        total = conn.execute(
+            f"SELECT COUNT(*) AS c FROM forward_log f JOIN usage_records u"
+            f" ON u.id = f.usage_record_id{where}", params).fetchone()["c"]
+        rows = conn.execute(f"{_forward_select()}{where} ORDER BY f.id DESC LIMIT ? OFFSET ?",
+                            [*params, limit, offset]).fetchall()
+    finally:
+        conn.close()
+    items = []
+    for r in rows:
+        d = dict(r)
+        for k in ("is_success", "ext_ok"):
+            if d.get(k) is not None:
+                d[k] = bool(d[k])
+        d["model_name"] = _model_name(d.get("model_id"))
         items.append(d)
     return {"total": total, "limit": limit, "offset": offset, "items": items}
 
@@ -367,6 +451,37 @@ async def get_emails(since_ts): return await asyncio.to_thread(_get_emails_sync,
 async def get_email_balances(): return await asyncio.to_thread(_get_email_balances_sync)
 async def get_user_report(since_ts): return await asyncio.to_thread(_get_user_report_sync, since_ts)
 async def get_requests(limit, offset, status, model, email, since_ts): return await asyncio.to_thread(_get_requests_sync, limit, offset, status, model, email, since_ts)
-async def get_external_summary(since_ts): return await asyncio.to_thread(_get_external_summary_sync, since_ts)
-async def get_external_reports(limit, offset, since_ts): return await asyncio.to_thread(_get_external_reports_sync, limit, offset, since_ts)
+async def get_external_summary(since_ts):
+    return await asyncio.to_thread(_get_external_summary_safe, since_ts)
+
+
+async def get_external_reports(limit, offset, since_ts):
+    return await asyncio.to_thread(_get_external_reports_safe, limit, offset, since_ts)
+
+
+def _get_external_summary_safe(since_ts):
+    """Основная БД (forward_log); fallback — external_reports аналитики."""
+    try:
+        conn = sqlite3.connect(settings.main_db_path)
+        try:
+            if _has_forward_log(conn):
+                return _get_external_summary_sync_main(since_ts)
+        finally:
+            conn.close()
+    except Exception:
+        log.exception("reading main db failed, falling back to external_reports")
+    return _get_external_summary_sync(since_ts)
+
+
+def _get_external_reports_safe(limit, offset, since_ts):
+    try:
+        conn = sqlite3.connect(settings.main_db_path)
+        try:
+            if _has_forward_log(conn):
+                return _get_external_reports_sync_main(limit, offset, since_ts)
+        finally:
+            conn.close()
+    except Exception:
+        log.exception("reading main db failed, falling back to external_reports")
+    return _get_external_reports_sync(limit, offset, since_ts)
 async def get_latest_credit(): return await asyncio.to_thread(_get_latest_credit_sync)
